@@ -1,0 +1,1063 @@
+dsl_version: 3
+name: asana
+version: 0.1.0
+description: >-
+  Query workspaces, projects, sections, tasks, task stories, and users from
+  Asana.
+backend: http
+inputs:
+  ASANA_API_BASE:
+    kind: variable
+    hint: |
+      Base URL for the Asana REST API.
+    default: https://app.asana.com/api/1.0
+  ASANA_ACCESS_TOKEN:
+    kind: secret
+    hint: |
+      Create a Personal Access Token in the Asana developer console and use it
+      as a Bearer token.
+
+      See the [Asana personal access token guide](https://developers.asana.com/docs/personal-access-token).
+base_url: "{{input.ASANA_API_BASE}}"
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.ASANA_ACCESS_TOKEN}}
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT * FROM asana.workspaces LIMIT 1
+tables:
+  - name: workspaces
+    description: Workspaces and organizations visible to the authenticated user
+    guide: |
+      Start here to discover `workspace_gid` values for workspace-scoped
+      tables such as `asana.projects` and `asana.users`.
+    request:
+      method: GET
+      path: /workspaces
+      query:
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,is_organization
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Workspace or organization ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Workspace name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: is_organization
+        type: Boolean
+        nullable: true
+        description: Whether this workspace is an organization
+        expr:
+          kind: path
+          path:
+            - is_organization
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw workspace object
+        expr:
+          kind: current_row
+  - name: projects
+    description: Projects in one Asana workspace
+    guide: |
+      Requires `workspace_gid`. Use this to discover `project_gid` values for
+      `asana.sections` and `asana.project_tasks`.
+    filters:
+      - name: workspace_gid
+        required: true
+      - name: archived
+        required: false
+    request:
+      method: GET
+      path: /workspaces/{{filter.workspace_gid}}/projects
+      query:
+        - name: archived
+          from: filter
+          key: archived
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,resource_subtype,archived,created_at,modified_at,due_on,due_at,permalink_url,owner.gid,owner.name,team.gid,team.name,workspace.gid,workspace.name
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Project ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Project name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: resource_subtype
+        type: Utf8
+        nullable: true
+        description: Asana project subtype
+        expr:
+          kind: path
+          path:
+            - resource_subtype
+      - name: archived
+        type: Boolean
+        nullable: true
+        description: Whether the project is archived
+        expr:
+          kind: path
+          path:
+            - archived
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Project creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - created_at
+      - name: modified_at
+        type: Timestamp
+        nullable: true
+        description: Last project update time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - modified_at
+      - name: due_on
+        type: Utf8
+        nullable: true
+        description: Project due date as YYYY-MM-DD
+        expr:
+          kind: path
+          path:
+            - due_on
+      - name: due_at
+        type: Timestamp
+        nullable: true
+        description: Project due time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - due_at
+      - name: permalink_url
+        type: Utf8
+        nullable: true
+        description: Project URL in Asana
+        expr:
+          kind: path
+          path:
+            - permalink_url
+      - name: owner_gid
+        type: Utf8
+        nullable: true
+        description: Owner user ID
+        expr:
+          kind: path
+          path:
+            - owner
+            - gid
+      - name: owner_name
+        type: Utf8
+        nullable: true
+        description: Owner display name
+        expr:
+          kind: path
+          path:
+            - owner
+            - name
+      - name: team_gid
+        type: Utf8
+        nullable: true
+        description: Team ID when the project belongs to a team
+        expr:
+          kind: path
+          path:
+            - team
+            - gid
+      - name: team_name
+        type: Utf8
+        nullable: true
+        description: Team name when available
+        expr:
+          kind: path
+          path:
+            - team
+            - name
+      - name: workspace_name
+        type: Utf8
+        nullable: true
+        description: Workspace name returned by Asana
+        expr:
+          kind: path
+          path:
+            - workspace
+            - name
+      - name: workspace_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Workspace ID filter
+        expr:
+          kind: from_filter
+          key: workspace_gid
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw project object
+        expr:
+          kind: current_row
+  - name: sections
+    description: Sections inside one Asana project
+    guide: |
+      Requires `project_gid`. Use this to map a project's workflow buckets
+      before drilling into tasks.
+    filters:
+      - name: project_gid
+        required: true
+    request:
+      method: GET
+      path: /projects/{{filter.project_gid}}/sections
+      query:
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,created_at,project.gid,project.name
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Section ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Section name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Section creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - created_at
+      - name: project_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Project ID filter
+        expr:
+          kind: from_filter
+          key: project_gid
+      - name: project_name
+        type: Utf8
+        nullable: true
+        description: Project name returned by Asana
+        expr:
+          kind: path
+          path:
+            - project
+            - name
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw section object
+        expr:
+          kind: current_row
+  - name: project_tasks
+    description: Tasks in one Asana project
+    guide: |
+      Requires `project_gid`. This is the main task listing table for v1.
+      Use `task_details` and `task_stories` when you need more data for one
+      specific task.
+    filters:
+      - name: project_gid
+        required: true
+      - name: completed_since
+        required: false
+    request:
+      method: GET
+      path: /projects/{{filter.project_gid}}/tasks
+      query:
+        - name: completed_since
+          from: filter
+          key: completed_since
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,resource_subtype,completed,completed_at,created_at,modified_at,due_on,due_at,start_on,start_at,assignee.gid,assignee.name,memberships,permalink_url
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Task ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Task name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: resource_subtype
+        type: Utf8
+        nullable: true
+        description: Asana task subtype
+        expr:
+          kind: path
+          path:
+            - resource_subtype
+      - name: completed
+        type: Boolean
+        nullable: true
+        description: Whether the task is completed
+        expr:
+          kind: path
+          path:
+            - completed
+      - name: completed_at
+        type: Timestamp
+        nullable: true
+        description: Completion time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - completed_at
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - created_at
+      - name: modified_at
+        type: Timestamp
+        nullable: true
+        description: Last update time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - modified_at
+      - name: due_on
+        type: Utf8
+        nullable: true
+        description: Due date as YYYY-MM-DD
+        expr:
+          kind: path
+          path:
+            - due_on
+      - name: due_at
+        type: Timestamp
+        nullable: true
+        description: Due time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - due_at
+      - name: start_on
+        type: Utf8
+        nullable: true
+        description: Start date as YYYY-MM-DD
+        expr:
+          kind: path
+          path:
+            - start_on
+      - name: start_at
+        type: Timestamp
+        nullable: true
+        description: Start time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - start_at
+      - name: assignee_gid
+        type: Utf8
+        nullable: true
+        description: Assignee user ID
+        expr:
+          kind: path
+          path:
+            - assignee
+            - gid
+      - name: assignee_name
+        type: Utf8
+        nullable: true
+        description: Assignee display name
+        expr:
+          kind: path
+          path:
+            - assignee
+            - name
+      - name: memberships
+        type: Json
+        nullable: true
+        description: Project and section memberships for the task
+        expr:
+          kind: path
+          path:
+            - memberships
+      - name: permalink_url
+        type: Utf8
+        nullable: true
+        description: Task URL in Asana
+        expr:
+          kind: path
+          path:
+            - permalink_url
+      - name: project_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Project ID filter
+        expr:
+          kind: from_filter
+          key: project_gid
+      - name: completed_since
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Optional completed_since filter value
+        expr:
+          kind: from_filter
+          key: completed_since
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw compact task object
+        expr:
+          kind: current_row
+  - name: task_details
+    description: Full details for one Asana task
+    guide: |
+      Requires `task_gid`. Use `asana.project_tasks` to discover task IDs, then
+      query this table for a richer single-task record.
+    filters:
+      - name: task_gid
+        required: true
+    request:
+      method: GET
+      path: /tasks/{{filter.task_gid}}
+      query:
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,resource_subtype,completed,completed_at,created_at,modified_at,due_on,due_at,start_on,start_at,notes,permalink_url,assignee.gid,assignee.name,workspace.gid,workspace.name,parent.gid,parent.name,memberships,custom_fields,followers,projects,tags
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+      allow_404_empty: false
+    pagination:
+      mode: none
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Task ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Task name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: resource_subtype
+        type: Utf8
+        nullable: true
+        description: Asana task subtype
+        expr:
+          kind: path
+          path:
+            - resource_subtype
+      - name: completed
+        type: Boolean
+        nullable: true
+        description: Whether the task is completed
+        expr:
+          kind: path
+          path:
+            - completed
+      - name: completed_at
+        type: Timestamp
+        nullable: true
+        description: Completion time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - completed_at
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - created_at
+      - name: modified_at
+        type: Timestamp
+        nullable: true
+        description: Last update time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - modified_at
+      - name: due_on
+        type: Utf8
+        nullable: true
+        description: Due date as YYYY-MM-DD
+        expr:
+          kind: path
+          path:
+            - due_on
+      - name: due_at
+        type: Timestamp
+        nullable: true
+        description: Due time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - due_at
+      - name: start_on
+        type: Utf8
+        nullable: true
+        description: Start date as YYYY-MM-DD
+        expr:
+          kind: path
+          path:
+            - start_on
+      - name: start_at
+        type: Timestamp
+        nullable: true
+        description: Start time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - start_at
+      - name: assignee_gid
+        type: Utf8
+        nullable: true
+        description: Assignee user ID
+        expr:
+          kind: path
+          path:
+            - assignee
+            - gid
+      - name: assignee_name
+        type: Utf8
+        nullable: true
+        description: Assignee display name
+        expr:
+          kind: path
+          path:
+            - assignee
+            - name
+      - name: notes
+        type: Utf8
+        nullable: true
+        description: Task notes as plain text
+        expr:
+          kind: path
+          path:
+            - notes
+      - name: permalink_url
+        type: Utf8
+        nullable: true
+        description: Task URL in Asana
+        expr:
+          kind: path
+          path:
+            - permalink_url
+      - name: workspace_gid
+        type: Utf8
+        nullable: true
+        description: Workspace ID for the task
+        expr:
+          kind: path
+          path:
+            - workspace
+            - gid
+      - name: workspace_name
+        type: Utf8
+        nullable: true
+        description: Workspace name for the task
+        expr:
+          kind: path
+          path:
+            - workspace
+            - name
+      - name: parent_gid
+        type: Utf8
+        nullable: true
+        description: Parent task ID when this task is a subtask
+        expr:
+          kind: path
+          path:
+            - parent
+            - gid
+      - name: parent_name
+        type: Utf8
+        nullable: true
+        description: Parent task name when available
+        expr:
+          kind: path
+          path:
+            - parent
+            - name
+      - name: memberships
+        type: Json
+        nullable: true
+        description: Project and section memberships for the task
+        expr:
+          kind: path
+          path:
+            - memberships
+      - name: custom_fields
+        type: Json
+        nullable: true
+        description: Custom field values attached to the task
+        expr:
+          kind: path
+          path:
+            - custom_fields
+      - name: followers
+        type: Json
+        nullable: true
+        description: Followers for the task
+        expr:
+          kind: path
+          path:
+            - followers
+      - name: projects
+        type: Json
+        nullable: true
+        description: Projects the task belongs to
+        expr:
+          kind: path
+          path:
+            - projects
+      - name: tags
+        type: Json
+        nullable: true
+        description: Tags attached to the task
+        expr:
+          kind: path
+          path:
+            - tags
+      - name: task_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Task ID filter
+        expr:
+          kind: from_filter
+          key: task_gid
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw task object
+        expr:
+          kind: current_row
+  - name: task_stories
+    description: Stories and comments for one Asana task
+    guide: |
+      Requires `task_gid`. This is a lookup-style table for one task's
+      activity history and comments.
+    filters:
+      - name: task_gid
+        required: true
+    request:
+      method: GET
+      path: /tasks/{{filter.task_gid}}/stories
+      query:
+        - name: opt_fields
+          from: literal
+          value: gid,resource_type,resource_subtype,created_at,created_by.gid,created_by.name,text,html_text,is_edited,target.gid,target.resource_type
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: Story ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: resource_subtype
+        type: Utf8
+        nullable: true
+        description: Story subtype such as comment_added
+        expr:
+          kind: path
+          path:
+            - resource_subtype
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Story creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - created_at
+      - name: created_by_gid
+        type: Utf8
+        nullable: true
+        description: Author user ID
+        expr:
+          kind: path
+          path:
+            - created_by
+            - gid
+      - name: created_by_name
+        type: Utf8
+        nullable: true
+        description: Author display name
+        expr:
+          kind: path
+          path:
+            - created_by
+            - name
+      - name: text
+        type: Utf8
+        nullable: true
+        description: Story text
+        expr:
+          kind: path
+          path:
+            - text
+      - name: html_text
+        type: Utf8
+        nullable: true
+        description: Story text rendered as HTML
+        expr:
+          kind: path
+          path:
+            - html_text
+      - name: is_edited
+        type: Boolean
+        nullable: true
+        description: Whether the story was edited
+        expr:
+          kind: path
+          path:
+            - is_edited
+      - name: target_gid
+        type: Utf8
+        nullable: true
+        description: Target object ID
+        expr:
+          kind: path
+          path:
+            - target
+            - gid
+      - name: target_resource_type
+        type: Utf8
+        nullable: true
+        description: Target object type
+        expr:
+          kind: path
+          path:
+            - target
+            - resource_type
+      - name: task_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Task ID filter
+        expr:
+          kind: from_filter
+          key: task_gid
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw story object
+        expr:
+          kind: current_row
+  - name: users
+    description: Users in one Asana workspace
+    guide: |
+      Requires `workspace_gid`. Use this to map assignee IDs and workspace
+      members during project analysis.
+    filters:
+      - name: workspace_gid
+        required: true
+    request:
+      method: GET
+      path: /workspaces/{{filter.workspace_gid}}/users
+      query:
+        - name: opt_fields
+          from: literal
+          value: gid,name,resource_type,email,photo.image_60x60,workspaces
+    response:
+      rows_path:
+        - data
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - next_page
+        - offset
+      page_size:
+        default: 50
+        max: 100
+        query_param: limit
+    columns:
+      - name: gid
+        type: Utf8
+        nullable: false
+        description: User ID
+        expr:
+          kind: path
+          path:
+            - gid
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Display name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: resource_type
+        type: Utf8
+        nullable: true
+        description: Asana resource type
+        expr:
+          kind: path
+          path:
+            - resource_type
+      - name: email
+        type: Utf8
+        nullable: true
+        description: Email address when visible to the token owner
+        expr:
+          kind: path
+          path:
+            - email
+      - name: photo_image_60x60
+        type: Utf8
+        nullable: true
+        description: Small avatar image URL
+        expr:
+          kind: path
+          path:
+            - photo
+            - image_60x60
+      - name: workspaces
+        type: Json
+        nullable: true
+        description: Workspaces associated with the user
+        expr:
+          kind: path
+          path:
+            - workspaces
+      - name: workspace_gid
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Workspace ID filter
+        expr:
+          kind: from_filter
+          key: workspace_gid
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw user object
+        expr:
+          kind: current_row
