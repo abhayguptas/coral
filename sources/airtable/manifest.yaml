@@ -1,0 +1,282 @@
+dsl_version: 3
+name: airtable
+version: 0.1.0
+description: >-
+  Query Airtable bases, base table schemas, and records with metadata-aware
+  JSON fields.
+backend: http
+inputs:
+  AIRTABLE_API_BASE:
+    kind: variable
+    hint: |
+      Base URL for the Airtable Web API.
+    default: https://api.airtable.com
+  AIRTABLE_TOKEN:
+    kind: secret
+    hint: |
+      Create a Personal Access Token with `schema.bases:read` and record read
+      scopes for the bases you want to query.
+
+      See the [Airtable Web API guide](https://support.airtable.com/docs/getting-started-with-airtables-web-api).
+base_url: "{{input.AIRTABLE_API_BASE}}"
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.AIRTABLE_TOKEN}}
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT * FROM airtable.bases LIMIT 1
+tables:
+  - name: bases
+    description: Airtable bases visible to the token
+    guide: |
+      Start here to discover `base_id` values for `airtable.base_tables` and
+      `airtable.records`.
+    request:
+      method: GET
+      path: /v0/meta/bases
+    response:
+      rows_path:
+        - bases
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - offset
+    columns:
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Base ID
+        expr:
+          kind: path
+          path:
+            - id
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Base name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: permission_level
+        type: Utf8
+        nullable: true
+        description: Permission level for the authenticated token
+        expr:
+          kind: path
+          path:
+            - permissionLevel
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw base object
+        expr:
+          kind: current_row
+  - name: base_tables
+    description: Table schema metadata for one Airtable base
+    guide: |
+      Requires `base_id`. Use this to discover `table_id` values and inspect
+      each table's field and view schema. `fields` and `views` stay as JSON in
+      v1 because Airtable returns them as nested arrays under each table.
+    filters:
+      - name: base_id
+        required: true
+    request:
+      method: GET
+      path: /v0/meta/bases/{{filter.base_id}}/tables
+    response:
+      rows_path:
+        - tables
+      row_strategy: direct
+      allow_404_empty: false
+    pagination:
+      mode: none
+    columns:
+      - name: base_id
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Base ID filter
+        expr:
+          kind: from_filter
+          key: base_id
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Table ID
+        expr:
+          kind: path
+          path:
+            - id
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Table name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: description
+        type: Utf8
+        nullable: true
+        description: Table description when available
+        expr:
+          kind: path
+          path:
+            - description
+      - name: primary_field_id
+        type: Utf8
+        nullable: true
+        description: Primary field ID for the table
+        expr:
+          kind: path
+          path:
+            - primaryFieldId
+      - name: fields
+        type: Json
+        nullable: true
+        description: Full field schema array for the table
+        expr:
+          kind: path
+          path:
+            - fields
+      - name: views
+        type: Json
+        nullable: true
+        description: Full view schema array for the table
+        expr:
+          kind: path
+          path:
+            - views
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw table schema object
+        expr:
+          kind: current_row
+  - name: records
+    description: Generic records from one Airtable table
+    guide: |
+      Requires `base_id` and `table_id`. This table intentionally exposes
+      record business data as `fields` JSON because Airtable table schemas are
+      user-defined and dynamic.
+    filters:
+      - name: base_id
+        required: true
+      - name: table_id
+        required: true
+      - name: view
+        required: false
+      - name: formula
+        required: false
+      - name: max_records
+        required: false
+    request:
+      method: GET
+      path: /v0/{{filter.base_id}}/{{filter.table_id}}
+      query:
+        - name: view
+          from: filter
+          key: view
+        - name: filterByFormula
+          from: filter
+          key: formula
+        - name: maxRecords
+          from: filter
+          key: max_records
+    response:
+      rows_path:
+        - records
+      row_strategy: direct
+      allow_404_empty: false
+    pagination:
+      mode: cursor_query
+      cursor_param: offset
+      response_cursor_path:
+        - offset
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: base_id
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Base ID filter
+        expr:
+          kind: from_filter
+          key: base_id
+      - name: table_id
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Table ID filter
+        expr:
+          kind: from_filter
+          key: table_id
+      - name: record_id
+        type: Utf8
+        nullable: false
+        description: Record ID
+        expr:
+          kind: path
+          path:
+            - id
+      - name: created_time
+        type: Timestamp
+        nullable: true
+        description: Record creation time
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - createdTime
+      - name: fields
+        type: Json
+        nullable: true
+        description: Airtable record fields as a JSON object
+        expr:
+          kind: path
+          path:
+            - fields
+      - name: view
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Optional Airtable view filter
+        expr:
+          kind: from_filter
+          key: view
+      - name: formula
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Optional Airtable formula filter
+        expr:
+          kind: from_filter
+          key: formula
+      - name: max_records
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Optional Airtable maxRecords filter
+        expr:
+          kind: from_filter
+          key: max_records
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw record object
+        expr:
+          kind: current_row
