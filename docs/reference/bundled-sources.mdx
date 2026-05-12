@@ -39,6 +39,7 @@ If the source you need is not available, you can extend Coral by [writing a cust
 | [statusgator](#statusgator) | `http` | Query status boards, monitors, incidents, history, service components, subscribers, users, and monitoring regions from StatusGator. |
 | [stripe](#stripe) | `http` | Query customers, charges, subscriptions, invoices, payments, products, prices, refunds, disputes, payouts, balance transactions, and events from Stripe. |
 | [wandb](#wandb) | `http` | Query the authenticated viewer, projects, runs, and sampled run metrics from Weights & Biases (W&B Cloud or self-hosted). |
+| [zendesk](#zendesk) | `http` | Query users, organizations, groups, tickets, and ticket comments from Zendesk Support. |
 
 ## Supported data source types
 
@@ -379,6 +380,27 @@ Personal API key for W&B. Generate one at
 [https://wandb.ai/authorize](https://wandb.ai/authorize) (or
 `https://<your-host>/authorize` for self-hosted). Coral uses the
 key for HTTP Basic auth with username `api`.
+
+### `zendesk`
+
+`ZENDESK_BASE_URL` (required)
+
+Base URL of your Zendesk Support instance, for example
+`https://acme.zendesk.com`.
+
+`ZENDESK_EMAIL` (required)
+
+Email address used for Zendesk API access.
+
+`ZENDESK_API_TOKEN` (required)
+
+Create an API token in Zendesk Admin Center under Apps and integrations \>
+APIs \> Zendesk API.
+
+Coral uses Zendesk's documented token auth format:
+`{email}/token:{api_token}`.
+
+See the [Zendesk API token auth guide](https://developer.zendesk.com/api-reference/introduction/security-and-auth/).
 
 ## Don't see what you need?
 

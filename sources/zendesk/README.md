@@ -1,0 +1,190 @@
+# Zendesk source
+
+This bundled source lets Coral query core Zendesk Support data with an API
+token.
+
+The first version is intentionally narrow and read-only. It focuses on the
+objects that matter most for support queue analysis:
+
+- users
+- organizations
+- groups
+- tickets
+- comments for one ticket
+
+## Authentication
+
+Create a Zendesk API token in Admin Center under:
+
+- Apps and integrations
+- APIs
+- Zendesk API
+
+Then export:
+
+```sh
+export ZENDESK_BASE_URL="https://acme.zendesk.com"
+export ZENDESK_EMAIL="you@example.com"
+export ZENDESK_API_TOKEN="your_zendesk_api_token"
+```
+
+Coral uses Zendesk's documented token auth format:
+
+- username: `your_email/token`
+- password: `your_api_token`
+
+## Quick start
+
+```sh
+coral source add zendesk
+coral source test zendesk
+coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'zendesk' ORDER BY table_name"
+```
+
+If you update the token later, run `coral source add zendesk` again so Coral
+refreshes the stored credentials.
+
+## Inspect the installed shape
+
+After adding the source, inspect what Coral sees:
+
+```sql
+SELECT table_name
+FROM coral.tables
+WHERE schema_name = 'zendesk'
+ORDER BY table_name;
+```
+
+```sql
+SELECT table_name, column_name, data_type, is_nullable
+FROM coral.columns
+WHERE schema_name = 'zendesk'
+ORDER BY table_name, ordinal_position;
+```
+
+```sql
+SELECT key, kind, required, is_set, default_value
+FROM coral.inputs
+WHERE schema_name = 'zendesk'
+ORDER BY key;
+```
+
+This is useful for confirming required filters and seeing which nested Zendesk
+payloads stay as JSON.
+
+## Tables
+
+| Table | Notes |
+|---|---|
+| `users` | User directory for the Zendesk account |
+| `organizations` | Organization metadata |
+| `groups` | Group metadata for ticket assignment |
+| `tickets` | Core ticket queue table |
+| `ticket_comments` | Comments for one ticket; requires `ticket_id` |
+
+## How to query it
+
+List users:
+
+```sql
+SELECT id, name, email, role
+FROM zendesk.users
+LIMIT 20;
+```
+
+List organizations:
+
+```sql
+SELECT id, name, shared_tickets, shared_comments
+FROM zendesk.organizations
+LIMIT 20;
+```
+
+List groups:
+
+```sql
+SELECT id, name, is_public
+FROM zendesk.groups
+LIMIT 20;
+```
+
+List recent tickets:
+
+```sql
+SELECT id, subject, status, priority, assignee_id, requester_id, updated_at
+FROM zendesk.tickets
+ORDER BY updated_at DESC
+LIMIT 20;
+```
+
+Inspect comments for one ticket:
+
+```sql
+SELECT created_at, author_id, public, body
+FROM zendesk.ticket_comments
+WHERE ticket_id = '123456'
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+## Table behavior notes
+
+- `ticket_comments` is a lookup-style table. It requires one `ticket_id`.
+- `tags`, `custom_fields`, `via`, `attachments`, `domain_names`, and `raw`
+  remain JSON so the source stays stable across different Zendesk accounts.
+- This source intentionally does not expose Zendesk search or export APIs in
+  v1.
+
+## Testing instructions
+
+Run these commands from the repo root after building the CLI:
+
+```sh
+cargo run --locked -p coral-cli -- source lint ./sources/zendesk/manifest.yaml
+make lint-sources
+make docs-generate
+make docs-check
+```
+
+For a clean live test, use a temporary Coral config directory:
+
+```sh
+export CORAL_CONFIG_DIR="$PWD/.tmp/zendesk-demo-config"
+mkdir -p "$CORAL_CONFIG_DIR"
+target/debug/coral source add zendesk
+target/debug/coral source test zendesk
+```
+
+Then verify the source shape:
+
+```sh
+target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'zendesk' ORDER BY table_name"
+target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'zendesk' ORDER BY table_name, ordinal_position"
+target/debug/coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'zendesk' ORDER BY key"
+```
+
+Then verify the data flow:
+
+```sh
+target/debug/coral sql "SELECT id, name, email, role FROM zendesk.users LIMIT 20"
+target/debug/coral sql "SELECT id, name FROM zendesk.organizations LIMIT 20"
+target/debug/coral sql "SELECT id, name FROM zendesk.groups LIMIT 20"
+target/debug/coral sql "SELECT id, subject, status, updated_at FROM zendesk.tickets ORDER BY updated_at DESC LIMIT 20"
+target/debug/coral sql "SELECT created_at, author_id, public, body FROM zendesk.ticket_comments WHERE ticket_id = 'YOUR_TICKET_ID' ORDER BY created_at DESC LIMIT 20"
+```
+
+## Demo recording flow
+
+For a simple demo, use this order:
+
+1. `coral source add zendesk`
+2. `coral source test zendesk`
+3. query `coral.tables`, `coral.columns`, and `coral.inputs`
+4. query `zendesk.users`
+5. query `zendesk.organizations`
+6. query `zendesk.groups`
+7. query `zendesk.tickets`
+8. query `zendesk.ticket_comments` with one real ticket ID
+
+That sequence shows setup, shape inspection, queue discovery, and ticket
+conversation drill-down without overreaching into broader Zendesk surfaces.
