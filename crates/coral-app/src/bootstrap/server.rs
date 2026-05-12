@@ -42,6 +42,7 @@ use crate::sources::manager::SourceManager;
 use crate::sources::service::SourceService;
 use crate::state::{AppStateLayout, ConfigStore, SecretStore};
 use crate::telemetry::TelemetryConfig;
+use crate::transport::GrpcMethodAnnotatedService;
 
 /// A static asset (e.g., a built SPA file) served on the same port as
 /// gRPC-Web.
@@ -292,6 +293,10 @@ impl RunningServer {
             .expect("shutdown mutex poisoned")
             .take()
         {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "send error means the receiver is already dropped, which is fine during shutdown"
+            )]
             let _ = shutdown_tx.send(());
         }
 
@@ -311,6 +316,10 @@ impl Drop for RunningServer {
             .expect("shutdown mutex poisoned")
             .take()
         {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "send error means the receiver is already dropped, which is fine during shutdown"
+            )]
             let _ = shutdown_tx.send(());
         }
     }
@@ -329,22 +338,28 @@ async fn start_server(
     let endpoint_uri = format!("http://{}", listener.local_addr()?);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
+    let source_service = GrpcMethodAnnotatedService::new(SourceServiceServer::new(source_service));
+    let feedback_service =
+        GrpcMethodAnnotatedService::new(FeedbackServiceServer::new(feedback_service));
+    let query_service = GrpcMethodAnnotatedService::new(
+        QueryServiceServer::new(query_service)
+            .max_encoding_message_size(QUERY_RESPONSE_MAX_MESSAGE_SIZE),
+    );
+
     let task = match mode {
         ServerMode::NativeGrpc => start_grpc_server(
             listener,
             shutdown_rx,
-            SourceServiceServer::new(source_service),
-            FeedbackServiceServer::new(feedback_service),
-            QueryServiceServer::new(query_service)
-                .max_encoding_message_size(QUERY_RESPONSE_MAX_MESSAGE_SIZE),
+            source_service,
+            feedback_service,
+            query_service,
         ),
         ServerMode::EmbeddedUi { assets, .. } => start_grpc_web_server(
             listener,
             shutdown_rx,
-            SourceServiceServer::new(source_service),
-            FeedbackServiceServer::new(feedback_service),
-            QueryServiceServer::new(query_service)
-                .max_encoding_message_size(QUERY_RESPONSE_MAX_MESSAGE_SIZE),
+            source_service,
+            feedback_service,
+            query_service,
             assets,
         ),
     };
@@ -393,7 +408,7 @@ where
             .add_service(feedback_service)
             .add_service(query_service)
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
-                let _ = shutdown_rx.await;
+                drop(shutdown_rx.await);
             })
             .await
     })
@@ -450,7 +465,7 @@ where
             .http2_max_header_list_size(HTTP2_MAX_HEADER_LIST_SIZE)
             .add_routes(combined)
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
-                let _ = shutdown_rx.await;
+                drop(shutdown_rx.await);
             })
             .await
     })
@@ -599,6 +614,11 @@ fn static_fallback_error_response(status: StatusCode, body: &'static str) -> Axu
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::indexing_slicing,
+        reason = "JSON row assertions intentionally fail loudly in tests"
+    )]
+
     use std::borrow::Cow;
     use std::net::{Ipv4Addr, TcpListener};
     use std::sync::Arc;
@@ -665,7 +685,7 @@ mod tests {
 
     #[test]
     fn server_builder_accepts_engine_extensions_providers() {
-        let _ = ServerBuilder::new()
+        let _builder = ServerBuilder::new()
             .add_engine_extensions_provider(Arc::new(AwsEngineExtensionsProvider))
             .add_engine_extensions_provider(Arc::new(NoopEngineExtensionsProvider));
     }

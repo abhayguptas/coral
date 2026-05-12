@@ -251,6 +251,7 @@ impl CompiledBackendSource for ParquetCompiledSource {
 
         Ok(BackendRegistration {
             tables,
+            table_functions: HashMap::default(),
             source: RegisteredSource {
                 schema_name: self.manifest.common.name.clone(),
                 tables: table_infos,
@@ -489,7 +490,10 @@ async fn infer_schema_expand_dicts(
                 ))
             })?;
 
-        let metadata_len = i32::from_le_bytes(tail[..4].try_into().map_err(|_| {
+        let metadata_tail = tail.get(..4).ok_or_else(|| {
+            DataFusionError::Execution("invalid parquet footer tail bytes".to_string())
+        })?;
+        let metadata_len = i32::from_le_bytes(metadata_tail.try_into().map_err(|_err| {
             DataFusionError::Execution("invalid parquet footer tail bytes".to_string())
         })?);
         if metadata_len < 0 {
@@ -542,7 +546,7 @@ async fn infer_schema_expand_dicts(
         });
     }
 
-    Ok(Arc::new(merged.unwrap()))
+    Ok(Arc::new(merged.expect("metadata items were processed")))
 }
 
 /// Expand dictionary-encoded fields to their plain value types.
@@ -1043,11 +1047,9 @@ mod tests {
     }
 
     fn parquet_table_spec_with_glob(location: &str, glob: &str) -> FileTableSpec {
-        parquet_manifest_with_glob_and_partitions(location, glob, &[])
-            .as_parquet()
-            .expect("parquet manifest")
-            .tables[0]
-            .clone()
+        let source_manifest = parquet_manifest_with_glob_and_partitions(location, glob, &[]);
+        let manifest = source_manifest.as_parquet().expect("parquet manifest");
+        manifest.tables.first().expect("parquet table").clone()
     }
 
     fn parquet_manifest_no_partitions(location: &str) -> ValidatedSourceManifest {
