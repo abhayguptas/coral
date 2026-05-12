@@ -53,10 +53,10 @@ ORDER BY table_name, ordinal_position;
 ```
 
 ```sql
-SELECT input_name, kind, has_default
+SELECT key, kind, required, is_set, default_value
 FROM coral.inputs
-WHERE source_name = 'asana'
-ORDER BY input_name;
+WHERE schema_name = 'asana'
+ORDER BY key;
 ```
 
 This is especially useful when validating required filters and nested JSON
@@ -150,9 +150,9 @@ ORDER BY name;
 - Asana returns timestamps as ISO 8601 values. Date-only fields such as
   `due_on` and `start_on` stay as strings in `YYYY-MM-DD` format.
 
-## Testing instructions
+## Validation
 
-Run these commands from the repo root after building the CLI:
+If you are developing this source in the Coral repo, run:
 
 ```sh
 cargo run --locked -p coral-cli -- source lint ./sources/asana/manifest.yaml
@@ -161,59 +161,44 @@ make docs-generate
 make docs-check
 ```
 
-For a clean live test, use a temporary Coral config directory:
+Then add and validate the source:
 
 ```sh
-export CORAL_CONFIG_DIR="$PWD/.tmp/asana-demo-config"
-mkdir -p "$CORAL_CONFIG_DIR"
-target/debug/coral source add asana
-target/debug/coral source test asana
+coral source add asana
+coral source test asana
 ```
 
-Then verify the main flow manually:
+Inspect the installed shape:
 
 ```sh
-target/debug/coral sql "SELECT gid, name FROM asana.workspaces ORDER BY name"
-target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER BY table_name"
-target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'asana' ORDER BY table_name, ordinal_position"
-target/debug/coral sql "SELECT input_name, kind, has_default FROM coral.inputs WHERE source_name = 'asana' ORDER BY input_name"
+coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER BY table_name"
+coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'asana' ORDER BY table_name, ordinal_position"
+coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'asana' ORDER BY key"
 ```
 
-Use the `workspace_gid` returned by `asana.workspaces`. Do not assume an older
-ID from another token or account will work.
-
-Pick one `workspace_gid`, then:
+Then verify the data flow with a few real queries. Start by discovering a
+workspace:
 
 ```sh
-target/debug/coral sql "SELECT gid, name, archived FROM asana.projects WHERE workspace_gid = 'YOUR_WORKSPACE_GID' ORDER BY name LIMIT 20"
+coral sql "SELECT gid, name FROM asana.workspaces ORDER BY name"
 ```
 
-Pick one `project_gid`, then:
+Use one `workspace_gid`, then:
 
 ```sh
-target/debug/coral sql "SELECT gid, name, assignee_name, completed, modified_at FROM asana.project_tasks WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY modified_at DESC LIMIT 20"
-target/debug/coral sql "SELECT gid, name, created_at FROM asana.sections WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY created_at"
+coral sql "SELECT gid, name, archived FROM asana.projects WHERE workspace_gid = 'YOUR_WORKSPACE_GID' ORDER BY name LIMIT 20"
 ```
 
-Pick one `task_gid`, then:
+Use one `project_gid`, then:
 
 ```sh
-target/debug/coral sql "SELECT gid, name, notes, due_on, custom_fields FROM asana.task_details WHERE task_gid = 'YOUR_TASK_GID'"
-target/debug/coral sql "SELECT created_at, created_by_name, resource_subtype, text FROM asana.task_stories WHERE task_gid = 'YOUR_TASK_GID' ORDER BY created_at DESC"
+coral sql "SELECT gid, name, assignee_name, completed, modified_at FROM asana.project_tasks WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY modified_at DESC LIMIT 20"
+coral sql "SELECT gid, name, created_at FROM asana.sections WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY created_at"
 ```
 
-## Demo recording flow
+Use one `task_gid`, then:
 
-For a simple demo, use this order:
-
-1. `coral source add asana`
-2. `coral source test asana`
-3. query `asana.workspaces`
-4. query `asana.projects` with one workspace ID
-5. query `asana.sections` with one project ID
-6. query `asana.project_tasks` with the same project ID
-7. query `asana.task_details` with one task ID
-8. query `asana.task_stories` with the same task ID
-
-That sequence shows setup, validation, discovery, and drill-down without
-requiring any unsupported join-driven filter behavior.
+```sh
+coral sql "SELECT gid, name, notes, due_on, custom_fields FROM asana.task_details WHERE task_gid = 'YOUR_TASK_GID'"
+coral sql "SELECT created_at, created_by_name, resource_subtype, text FROM asana.task_stories WHERE task_gid = 'YOUR_TASK_GID' ORDER BY created_at DESC"
+```
