@@ -17,7 +17,6 @@ If the source you need is not available, you can extend Coral by [writing a cust
 
 | Source | Backend | Description |
 | --- | --- | --- |
-| [asana](#asana) | `http` | Query workspaces, projects, sections, tasks, task stories, and users from Asana. |
 | [clickup](#clickup) | `http` | Query tasks, spaces, folders, lists, goals, time entries, comments, views, tags, custom fields, teams, and users from ClickUp. |
 | [cloudwatch_logs](#cloudwatch_logs) | `http` | Query Amazon CloudWatch Logs groups, streams, and events. |
 | [cloudwatch_metrics](#cloudwatch_metrics) | `http` | Query Amazon CloudWatch metrics and monitoring metadata. |
@@ -56,20 +55,6 @@ To update bundled sources, upgrade the Coral binary. Coral resolves each bundled
 
 Each source has its own set of interactive inputs — API tokens, base URLs, or
 other per-install configuration.
-
-### `asana`
-
-`ASANA_API_BASE` (optional)<br />
-default `https://app.asana.com/api/1.0`
-
-Base URL for the Asana REST API.
-
-`ASANA_ACCESS_TOKEN` (required)
-
-Create a Personal Access Token in the Asana developer console and use it
-as a Bearer token.
-
-See the [Asana personal access token guide](https://developers.asana.com/docs/personal-access-token).
 
 ### `clickup`
 
