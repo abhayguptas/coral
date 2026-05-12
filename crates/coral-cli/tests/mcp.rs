@@ -1,7 +1,10 @@
 #![allow(
+    clippy::indexing_slicing,
+    clippy::panic_in_result_fn,
+    clippy::string_slice,
     missing_docs,
     unused_crate_dependencies,
-    reason = "Integration tests only use a subset of the package dependency graph."
+    reason = "Integration test: assertion-style indexing is idiomatic; only a subset of dependencies are used."
 )]
 #![cfg(feature = "cli-test-server")]
 
@@ -70,7 +73,7 @@ async fn mcp_stdio_lists_tools_and_resources() -> Result<(), Box<dyn std::error:
             .iter()
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>(),
-        vec!["sql", "list_tables", "search_tables"]
+        vec!["sql", "list_tables", "search_tables", "describe_table"]
     );
     assert!(
         tools[0]
@@ -135,7 +138,13 @@ async fn mcp_stdio_enable_feedback_lists_feedback_tool() -> Result<(), Box<dyn s
             .iter()
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>(),
-        vec!["sql", "list_tables", "search_tables", "feedback"]
+        vec![
+            "sql",
+            "list_tables",
+            "search_tables",
+            "describe_table",
+            "feedback"
+        ]
     );
 
     client.cancel().await?;
@@ -151,6 +160,7 @@ async fn mcp_stdio_sql_and_list_tables_return_structured_content()
 
     assert_list_tables_tool(&client, &server).await?;
     assert_search_tables_tool(&client, &server).await?;
+    assert_describe_table_tool(&client, &server).await?;
     assert_sql_tool(&client).await?;
 
     client.cancel().await?;
@@ -249,6 +259,40 @@ async fn assert_search_tables_tool(
             .iter()
             .any(|field| field == "guide")
     );
+    Ok(())
+}
+
+async fn assert_describe_table_tool(
+    client: &RunningService<RoleClient, ()>,
+    server: &MockServer,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let list_tables_before = server.list_tables_requests().len();
+    let execute_sql_before = server.execute_sql_requests().len();
+    let described = structured_tool_content(
+        client,
+        CallToolRequestParams::new("describe_table").with_arguments(json_object(&json!({
+            "schema": "local_messages",
+            "table": "messages"
+        }))),
+    )
+    .await?;
+    assert_eq!(described["found"], true);
+    assert_eq!(described["name"], "local_messages.messages");
+    assert_eq!(described["column_count"], 3);
+
+    let list_tables_requests = server.list_tables_requests();
+    assert_eq!(list_tables_requests.len(), list_tables_before + 1);
+    let describe_request = &list_tables_requests[list_tables_before];
+    assert_eq!(describe_request.schema_name, "local_messages");
+    assert_eq!(describe_request.table_name, "messages");
+    let pagination = describe_request
+        .pagination
+        .as_ref()
+        .expect("describe table pagination");
+    assert_eq!(pagination.limit, 1);
+    assert_eq!(pagination.offset, 0);
+    assert!(!describe_request.omit_columns);
+    assert_eq!(server.execute_sql_requests().len(), execute_sql_before);
     Ok(())
 }
 

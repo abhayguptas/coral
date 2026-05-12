@@ -82,7 +82,10 @@ fn collect_filter_values(
             if !allowed.contains(col_name.as_str()) {
                 return;
             }
-            if let Some(value) = literal_to_string(&in_list.list[0]) {
+            let Some(literal) = in_list.list.first() else {
+                return;
+            };
+            if let Some(value) = literal_to_string(literal) {
                 filters.insert(col_name, value);
             }
         }
@@ -140,7 +143,7 @@ fn extract_column_equality(
     Some((col_name, value))
 }
 
-#[allow(
+#[expect(
     clippy::match_same_arms,
     reason = "These match arms look similar but operate on different expression variants and value widths"
 )]

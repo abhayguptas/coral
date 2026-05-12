@@ -277,7 +277,7 @@ pub(crate) fn collect_inputs_from_env(
     collect_inputs_with(inputs, |key| read_source_input_env(key).unwrap_or_default())
 }
 
-#[allow(
+#[expect(
     clippy::disallowed_methods,
     reason = "`coral source add` reads install-time source inputs from matching environment variables."
 )]
@@ -650,6 +650,11 @@ pub(crate) fn finalize_input_value(
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::indexing_slicing,
+        reason = "collected input order assertions intentionally fail loudly in tests"
+    )]
+
     use coral_api::v1::ValidateSourceResponse;
     use coral_spec::{ManifestInputKind, ManifestInputSpec};
 

@@ -206,10 +206,6 @@ pub struct RequestRouteSpec {
 }
 
 /// Supported HTTP methods in the source-spec DSL.
-#[allow(
-    clippy::upper_case_acronyms,
-    reason = "The manifest format uses conventional HTTP method spellings."
-)]
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethod {
@@ -639,7 +635,7 @@ impl OffsetPagination {
                     "{schema}.{table} offset pagination requires page_size"
                 ))
             })?)
-            .map_err(|_| {
+            .map_err(|_err| {
                 ManifestError::validation(format!(
                     "{schema}.{table} page_size exceeds supported i64 range"
                 ))
@@ -965,7 +961,8 @@ mod tests {
             panic!("expected legacy array to deserialize as Json variant");
         };
         assert_eq!(fields.len(), 1);
-        assert_eq!(fields[0].path, vec!["query".to_string()]);
+        let field = fields.first().expect("legacy body field");
+        assert_eq!(field.path, vec!["query".to_string()]);
     }
 
     #[test]
@@ -1044,7 +1041,8 @@ mod tests {
             "name": "q",
             "mode": "fuzzy"
         }));
-        assert!(result.is_err());
+        let error = result.expect_err("unknown filter mode should fail");
+        assert!(error.to_string().contains("unknown variant"));
     }
 
     #[test]

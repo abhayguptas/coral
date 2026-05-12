@@ -77,10 +77,13 @@ fn truncate_status_detail(detail: String) -> String {
     while cut > 0 && !detail.is_char_boundary(cut) {
         cut -= 1;
     }
-    format!("{}{MARKER}", &detail[..cut])
+    let truncated = detail
+        .get(..cut)
+        .expect("cut is adjusted to a UTF-8 character boundary");
+    format!("{truncated}{MARKER}")
 }
 
-#[allow(
+#[expect(
     clippy::needless_pass_by_value,
     reason = "used directly as a map_err adapter across tonic service handlers"
 )]
@@ -88,10 +91,6 @@ pub(crate) fn app_status(error: AppError) -> Status {
     Status::new(app_code(&error), truncate_status_detail(error.to_string()))
 }
 
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "used directly as a map_err adapter across tonic service handlers"
-)]
 pub(crate) fn core_status(error: CoreError) -> Status {
     match error {
         CoreError::QueryFailure(sqe) => {

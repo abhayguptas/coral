@@ -1,3 +1,9 @@
+#![allow(
+    clippy::indexing_slicing,
+    clippy::string_slice,
+    reason = "test code: assertion-style indexing is idiomatic in tests"
+)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -6,9 +12,10 @@ use coral_client::{
     AppClient, SourceClient, default_workspace,
     local::{RunningServer, ServerBuilder},
 };
+use jsonschema::JSONSchema;
 use rmcp::{
     RoleClient, ServiceExt,
-    model::{CallToolRequestParams, ReadResourceRequestParams},
+    model::{CallToolRequestParams, ReadResourceRequestParams, Tool},
     service::RunningService,
 };
 use serde_json::{Map, Value, json};
@@ -139,9 +146,7 @@ async fn start_session_with_options(temp: &TempDir, options: McpOptions) -> Test
 
     let (server_transport, client_transport) = tokio::io::duplex(4096);
     let mcp_server_task = tokio::spawn(async move {
-        let server = CoralMcpServer::new(&app, options)
-            .serve(server_transport)
-            .await?;
+        let server = Box::pin(CoralMcpServer::new(&app, options).serve(server_transport)).await?;
         server.waiting().await?;
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     });
@@ -163,8 +168,36 @@ fn text_content(result: &rmcp::model::ReadResourceResult) -> &str {
     }
 }
 
+fn tool_by_name<'a>(tools: &'a [Tool], name: &str) -> &'a Tool {
+    tools
+        .iter()
+        .find(|tool| tool.name == name)
+        .expect("tool should be listed")
+}
+
+fn assert_matches_output_schema(tool: &Tool, value: &Value) {
+    let schema = Value::Object(
+        tool.output_schema
+            .as_ref()
+            .unwrap_or_else(|| panic!("tool '{}' should advertise output schema", tool.name))
+            .as_ref()
+            .clone(),
+    );
+    let compiled = JSONSchema::compile(&schema).expect("tool output schema should compile");
+    if let Err(errors) = compiled.validate(value) {
+        let details = errors
+            .map(|error| error.to_string())
+            .collect::<Vec<_>>()
+            .join("; ");
+        panic!(
+            "tool '{}' structured content did not match output schema: {details}",
+            tool.name
+        );
+    }
+}
+
 #[tokio::test]
-#[allow(
+#[expect(
     clippy::too_many_lines,
     reason = "This focused session test still verifies multiple discovery and resource refresh assertions in one end-to-end flow."
 )]
@@ -181,7 +214,7 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
             .iter()
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>(),
-        vec!["sql", "list_tables", "search_tables"]
+        vec!["sql", "list_tables", "search_tables", "describe_table"]
     );
     assert!(
         initial_tools[0]
@@ -222,6 +255,8 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
     add_demo_source(&mut session.source_client, manifest_yaml).await;
 
     let updated_tools = client.list_all_tools().await.expect("updated tools");
+    let list_tables_tool = tool_by_name(&updated_tools, "list_tables");
+    let search_tables_tool = tool_by_name(&updated_tools, "search_tables");
     assert!(
         updated_tools[0]
             .description
@@ -301,6 +336,7 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
     );
     assert!(structured_tables["tables"][0]["columns"].is_null());
     assert_eq!(tables.is_error, Some(false));
+    assert_matches_output_schema(list_tables_tool, &structured_tables);
 
     let page = client
         .call_tool(
@@ -318,6 +354,7 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
     assert_eq!(page["has_more"], true);
     assert_eq!(page["next_offset"], 2);
     assert_eq!(page["tables"].as_array().expect("tables").len(), 2);
+    assert_matches_output_schema(list_tables_tool, &page);
 
     let unknown_schema = client
         .call_tool(
@@ -339,6 +376,7 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
             .expect("tables")
             .is_empty()
     );
+    assert_matches_output_schema(list_tables_tool, &unknown_schema);
 
     client
         .call_tool(
@@ -367,12 +405,17 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
         "local_messages.messages"
     );
     assert!(
+        search["tables"][0]["guide"].is_string(),
+        "search results should always expose guide text, even when empty"
+    );
+    assert!(
         search["tables"][0]["matched_fields"]
             .as_array()
             .expect("matched fields")
             .iter()
             .any(|field| field == "table_name")
     );
+    assert_matches_output_schema(search_tables_tool, &search);
 
     let search_page = client
         .call_tool(
@@ -389,6 +432,7 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
     assert_eq!(search_page["limit"], 2);
     assert_eq!(search_page["has_more"], true);
     assert_eq!(search_page["next_offset"], 2);
+    assert_matches_output_schema(search_tables_tool, &search_page);
 
     client
         .call_tool(
@@ -398,6 +442,85 @@ async fn mcp_surface_refreshes_and_renders_dynamic_guide() {
         )
         .await
         .expect_err("invalid regex should fail");
+
+    let described = client
+        .call_tool(
+            CallToolRequestParams::new("describe_table").with_arguments(json_object(&json!({
+                "schema": "local_messages",
+                "table": "messages"
+            }))),
+        )
+        .await
+        .expect("describe table");
+    let described = described.structured_content.expect("structured content");
+    assert_eq!(described["found"], true);
+    assert_eq!(described["name"], "local_messages.messages");
+    assert_eq!(described["column_count"], 3);
+    assert!(described["columns_hint"].as_str().is_some());
+    assert!(described["columns"].is_null());
+
+    let missing_table = client
+        .call_tool(
+            CallToolRequestParams::new("describe_table").with_arguments(json_object(&json!({
+                "schema": "local_messages",
+                "table": "missing"
+            }))),
+        )
+        .await
+        .expect("describe missing table");
+    assert_eq!(missing_table.is_error, Some(false));
+    let missing_table = missing_table
+        .structured_content
+        .expect("structured content");
+    assert_eq!(missing_table["found"], false);
+    assert_eq!(missing_table["requested"]["schema"], "local_messages");
+    assert_eq!(missing_table["requested"]["table"], "missing");
+    assert_eq!(
+        missing_table["same_schema_tables"][0]["name"],
+        "local_messages.events"
+    );
+    assert_eq!(missing_table["suggested_calls"][0]["tool"], "search_tables");
+    assert_eq!(
+        missing_table["suggested_calls"][0]["arguments"]["pattern"],
+        "missing"
+    );
+    assert_eq!(
+        missing_table["suggested_calls"][0]["arguments"]["schema"],
+        "local_messages"
+    );
+
+    let missing_schema = client
+        .call_tool(
+            CallToolRequestParams::new("describe_table").with_arguments(json_object(&json!({
+                "schema": "local_mesages",
+                "table": "missing["
+            }))),
+        )
+        .await
+        .expect("describe missing schema");
+    assert_eq!(missing_schema.is_error, Some(false));
+    let missing_schema = missing_schema
+        .structured_content
+        .expect("structured content");
+    assert_eq!(missing_schema["found"], false);
+    assert_eq!(
+        missing_schema["suggested_calls"][0]["arguments"]["pattern"],
+        r"missing\["
+    );
+    assert!(
+        missing_schema["suggested_calls"][0]["arguments"]["schema"].is_null(),
+        "search suggestion should not constrain a missing schema"
+    );
+
+    client
+        .call_tool(
+            CallToolRequestParams::new("describe_table").with_arguments(json_object(&json!({
+                "schema": "local_messages",
+                "table": " "
+            }))),
+        )
+        .await
+        .expect_err("blank table should fail");
 
     session.shutdown().await;
 }
@@ -409,6 +532,7 @@ async fn mcp_feedback_tool_persists_blocked_agent_report() {
         &temp,
         McpOptions {
             feedback_enabled: true,
+            ..McpOptions::default()
         },
     )
     .await;
@@ -420,9 +544,15 @@ async fn mcp_feedback_tool_persists_blocked_agent_report() {
             .iter()
             .map(|tool| tool.name.as_ref())
             .collect::<Vec<_>>(),
-        vec!["sql", "list_tables", "search_tables", "feedback"]
+        vec![
+            "sql",
+            "list_tables",
+            "search_tables",
+            "describe_table",
+            "feedback"
+        ]
     );
-    let feedback_annotations = tools[3].annotations.as_ref().expect("feedback annotations");
+    let feedback_annotations = tools[4].annotations.as_ref().expect("feedback annotations");
     assert_eq!(feedback_annotations.read_only_hint, Some(false));
     assert_eq!(feedback_annotations.destructive_hint, Some(false));
     assert_eq!(feedback_annotations.idempotent_hint, Some(false));
