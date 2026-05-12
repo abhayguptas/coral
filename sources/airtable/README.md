@@ -54,6 +54,34 @@ coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'airtable' OR
 If you update the token later, run `coral source add airtable` again so Coral
 refreshes the stored credentials.
 
+## Inspect the installed shape
+
+After adding the source, it is useful to inspect the shape Coral sees:
+
+```sql
+SELECT table_name
+FROM coral.tables
+WHERE schema_name = 'airtable'
+ORDER BY table_name;
+```
+
+```sql
+SELECT table_name, column_name, data_type, is_nullable
+FROM coral.columns
+WHERE schema_name = 'airtable'
+ORDER BY table_name, ordinal_position;
+```
+
+```sql
+SELECT input_name, kind, has_default
+FROM coral.inputs
+WHERE source_name = 'airtable'
+ORDER BY input_name;
+```
+
+This is especially useful for Airtable because the source is intentionally
+JSON-first for dynamic schema content.
+
 ## Tables
 
 | Table | Notes |
@@ -156,6 +184,9 @@ Then verify the main flow manually:
 
 ```sh
 target/debug/coral sql "SELECT id, name, permission_level FROM airtable.bases ORDER BY name"
+target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'airtable' ORDER BY table_name"
+target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'airtable' ORDER BY table_name, ordinal_position"
+target/debug/coral sql "SELECT input_name, kind, has_default FROM coral.inputs WHERE source_name = 'airtable' ORDER BY input_name"
 ```
 
 Pick one `base_id`, then:
