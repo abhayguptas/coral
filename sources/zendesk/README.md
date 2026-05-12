@@ -135,9 +135,9 @@ LIMIT 20;
 - This source intentionally does not expose Zendesk search or export APIs in
   v1.
 
-## Testing instructions
+## Validation
 
-Run these commands from the repo root after building the CLI:
+If you are developing this source in the Coral repo, run:
 
 ```sh
 cargo run --locked -p coral-cli -- source lint ./sources/zendesk/manifest.yaml
@@ -146,45 +146,27 @@ make docs-generate
 make docs-check
 ```
 
-For a clean live test, use a temporary Coral config directory:
+Then add and validate the source:
 
 ```sh
-export CORAL_CONFIG_DIR="$PWD/.tmp/zendesk-demo-config"
-mkdir -p "$CORAL_CONFIG_DIR"
-target/debug/coral source add zendesk
-target/debug/coral source test zendesk
+coral source add zendesk
+coral source test zendesk
 ```
 
-Then verify the source shape:
+Inspect the installed shape:
 
 ```sh
-target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'zendesk' ORDER BY table_name"
-target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'zendesk' ORDER BY table_name, ordinal_position"
-target/debug/coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'zendesk' ORDER BY key"
+coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'zendesk' ORDER BY table_name"
+coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'zendesk' ORDER BY table_name, ordinal_position"
+coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'zendesk' ORDER BY key"
 ```
 
-Then verify the data flow:
+Then verify the data flow with a few real queries:
 
 ```sh
-target/debug/coral sql "SELECT id, name, email, role FROM zendesk.users LIMIT 20"
-target/debug/coral sql "SELECT id, name FROM zendesk.organizations LIMIT 20"
-target/debug/coral sql "SELECT id, name FROM zendesk.groups LIMIT 20"
-target/debug/coral sql "SELECT id, subject, status, updated_at FROM zendesk.tickets ORDER BY updated_at DESC LIMIT 20"
-target/debug/coral sql "SELECT created_at, author_id, public, body FROM zendesk.ticket_comments WHERE ticket_id = 'YOUR_TICKET_ID' ORDER BY created_at DESC LIMIT 20"
+coral sql "SELECT id, name, email, role FROM zendesk.users LIMIT 20"
+coral sql "SELECT id, name FROM zendesk.organizations LIMIT 20"
+coral sql "SELECT id, name FROM zendesk.groups LIMIT 20"
+coral sql "SELECT id, subject, status, updated_at FROM zendesk.tickets ORDER BY updated_at DESC LIMIT 20"
+coral sql "SELECT created_at, author_id, public, body FROM zendesk.ticket_comments WHERE ticket_id = 'YOUR_TICKET_ID' ORDER BY created_at DESC LIMIT 20"
 ```
-
-## Demo recording flow
-
-For a simple demo, use this order:
-
-1. `coral source add zendesk`
-2. `coral source test zendesk`
-3. query `coral.tables`, `coral.columns`, and `coral.inputs`
-4. query `zendesk.users`
-5. query `zendesk.organizations`
-6. query `zendesk.groups`
-7. query `zendesk.tickets`
-8. query `zendesk.ticket_comments` with one real ticket ID
-
-That sequence shows setup, shape inspection, queue discovery, and ticket
-conversation drill-down without overreaching into broader Zendesk surfaces.
