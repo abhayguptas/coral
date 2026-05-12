@@ -34,6 +34,34 @@ coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER
 If you update the token later, run `coral source add asana` again so Coral
 refreshes the stored credentials.
 
+## Inspect the installed shape
+
+After adding the source, it is useful to inspect the shape Coral sees:
+
+```sql
+SELECT table_name
+FROM coral.tables
+WHERE schema_name = 'asana'
+ORDER BY table_name;
+```
+
+```sql
+SELECT table_name, column_name, data_type, is_nullable
+FROM coral.columns
+WHERE schema_name = 'asana'
+ORDER BY table_name, ordinal_position;
+```
+
+```sql
+SELECT input_name, kind, has_default
+FROM coral.inputs
+WHERE source_name = 'asana'
+ORDER BY input_name;
+```
+
+This is especially useful when validating required filters and nested JSON
+columns such as `custom_fields`, `memberships`, and `projects`.
+
 ## Tables
 
 | Table | Notes |
@@ -146,6 +174,9 @@ Then verify the main flow manually:
 
 ```sh
 target/debug/coral sql "SELECT gid, name FROM asana.workspaces ORDER BY name"
+target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER BY table_name"
+target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'asana' ORDER BY table_name, ordinal_position"
+target/debug/coral sql "SELECT input_name, kind, has_default FROM coral.inputs WHERE source_name = 'asana' ORDER BY input_name"
 ```
 
 Use the `workspace_gid` returned by `asana.workspaces`. Do not assume an older
