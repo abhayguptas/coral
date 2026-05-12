@@ -73,10 +73,10 @@ ORDER BY table_name, ordinal_position;
 ```
 
 ```sql
-SELECT input_name, kind, has_default
+SELECT key, kind, required, is_set, default_value
 FROM coral.inputs
-WHERE source_name = 'airtable'
-ORDER BY input_name;
+WHERE schema_name = 'airtable'
+ORDER BY key;
 ```
 
 This is especially useful for Airtable because the source is intentionally
@@ -160,9 +160,9 @@ LIMIT 10;
 - `records` supports optional `view`, `formula`, and `max_records` filters in
   addition to Coral's normal SQL `LIMIT`.
 
-## Testing instructions
+## Validation
 
-Run these commands from the repo root after building the CLI:
+If you are developing this source in the Coral repo, run:
 
 ```sh
 cargo run --locked -p coral-cli -- source lint ./sources/airtable/manifest.yaml
@@ -171,55 +171,43 @@ make docs-generate
 make docs-check
 ```
 
-For a clean live test, use a temporary Coral config directory:
+Then add and validate the source:
 
 ```sh
-export CORAL_CONFIG_DIR="$PWD/.tmp/airtable-demo-config"
-mkdir -p "$CORAL_CONFIG_DIR"
-target/debug/coral source add airtable
-target/debug/coral source test airtable
+coral source add airtable
+coral source test airtable
 ```
 
-Then verify the main flow manually:
+Inspect the installed shape:
 
 ```sh
-target/debug/coral sql "SELECT id, name, permission_level FROM airtable.bases ORDER BY name"
-target/debug/coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'airtable' ORDER BY table_name"
-target/debug/coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'airtable' ORDER BY table_name, ordinal_position"
-target/debug/coral sql "SELECT input_name, kind, has_default FROM coral.inputs WHERE source_name = 'airtable' ORDER BY input_name"
+coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'airtable' ORDER BY table_name"
+coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'airtable' ORDER BY table_name, ordinal_position"
+coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'airtable' ORDER BY key"
 ```
 
-Pick one `base_id`, then:
+Then verify the data flow with a few real queries. Start by listing bases:
 
 ```sh
-target/debug/coral sql "SELECT id, name, primary_field_id FROM airtable.base_tables WHERE base_id = 'YOUR_BASE_ID' ORDER BY name"
+coral sql "SELECT id, name, permission_level FROM airtable.bases ORDER BY name"
 ```
 
-Pick one `table_id`, then:
+Use one `base_id`, then:
 
 ```sh
-target/debug/coral sql "SELECT id, name, fields, views FROM airtable.base_tables WHERE base_id = 'YOUR_BASE_ID' AND id = 'YOUR_TABLE_ID'"
-target/debug/coral sql "SELECT record_id, created_time, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' LIMIT 10"
+coral sql "SELECT id, name, primary_field_id FROM airtable.base_tables WHERE base_id = 'YOUR_BASE_ID' ORDER BY name"
+```
+
+Use one `table_id`, then:
+
+```sh
+coral sql "SELECT id, name, fields, views FROM airtable.base_tables WHERE base_id = 'YOUR_BASE_ID' AND id = 'YOUR_TABLE_ID'"
+coral sql "SELECT record_id, created_time, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' LIMIT 10"
 ```
 
 Optional filtered record checks:
 
 ```sh
-target/debug/coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND view = 'YOUR_VIEW_ID' LIMIT 10"
-target/debug/coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND formula = \"{Status} = 'Open'\" LIMIT 10"
+coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND view = 'YOUR_VIEW_ID' LIMIT 10"
+coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND formula = \"{Status} = 'Open'\" LIMIT 10"
 ```
-
-## Demo recording flow
-
-For a simple demo, use this order:
-
-1. `coral source add airtable`
-2. `coral source test airtable`
-3. query `airtable.bases`
-4. query `airtable.base_tables` with one base ID
-5. show `fields` and `views` JSON for one table row
-6. query `airtable.records` with that base ID and table ID
-7. rerun `airtable.records` with a `view` or `formula` filter
-
-That sequence shows setup, metadata discovery, and generic record access
-without pretending that Airtable's custom fields are fixed SQL columns.
