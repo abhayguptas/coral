@@ -17,7 +17,6 @@ If the source you need is not available, you can extend Coral by [writing a cust
 
 | Source | Backend | Description |
 | --- | --- | --- |
-| [circleci](#circleci) | `http` | Query the current user, recent pipelines, pipeline workflows, and workflow jobs from CircleCI API v2. |
 | [clickup](#clickup) | `http` | Query tasks, spaces, folders, lists, goals, time entries, comments, views, tags, custom fields, teams, and users from ClickUp. |
 | [cloudwatch_logs](#cloudwatch_logs) | `http` | Query Amazon CloudWatch Logs groups, streams, and events. |
 | [cloudwatch_metrics](#cloudwatch_metrics) | `http` | Query Amazon CloudWatch metrics and monitoring metadata. |
@@ -56,20 +55,6 @@ To update bundled sources, upgrade the Coral binary. Coral resolves each bundled
 
 Each source has its own set of interactive inputs — API tokens, base URLs, or
 other per-install configuration.
-
-### `circleci`
-
-`CIRCLECI_API_BASE` (optional)<br />
-default `https://circleci.com/api/v2`
-
-Base URL for the CircleCI API v2.
-
-`CIRCLECI_TOKEN` (required)
-
-Create a CircleCI API token with access to the organizations and projects
-you want to query.
-
-See the [CircleCI token guide](https://circleci.com/docs/managing-api-tokens/).
 
 ### `clickup`
 
