@@ -209,5 +209,5 @@ Optional filtered record checks:
 
 ```sh
 coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND view = 'YOUR_VIEW_ID' LIMIT 10"
-coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND formula = \"{Status} = 'Open'\" LIMIT 10"
+coral sql "SELECT record_id, fields FROM airtable.records WHERE base_id = 'YOUR_BASE_ID' AND table_id = 'YOUR_TABLE_ID' AND formula = '{Status} = ''Open''' LIMIT 10"
 ```

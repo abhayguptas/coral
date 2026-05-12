@@ -190,7 +190,7 @@ tables:
           from: filter
           key: formula
         - name: maxRecords
-          from: filter
+          from: filter_int
           key: max_records
     response:
       rows_path:
@@ -267,7 +267,7 @@ tables:
           kind: from_filter
           key: formula
       - name: max_records
-        type: Utf8
+        type: Int64
         nullable: true
         virtual: true
         description: Optional Airtable maxRecords filter
