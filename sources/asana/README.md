@@ -164,41 +164,41 @@ make docs-check
 Then add and validate the source:
 
 ```sh
-coral source add asana
-coral source test asana
+cargo run --locked -p coral-cli -- source add asana
+cargo run --locked -p coral-cli -- source test asana
 ```
 
 Inspect the installed shape:
 
 ```sh
-coral sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER BY table_name"
-coral sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'asana' ORDER BY table_name, ordinal_position"
-coral sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'asana' ORDER BY key"
+cargo run --locked -p coral-cli -- sql "SELECT table_name FROM coral.tables WHERE schema_name = 'asana' ORDER BY table_name"
+cargo run --locked -p coral-cli -- sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'asana' ORDER BY table_name, ordinal_position"
+cargo run --locked -p coral-cli -- sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'asana' ORDER BY key"
 ```
 
 Then verify the data flow with a few real queries. Start by discovering a
 workspace:
 
 ```sh
-coral sql "SELECT gid, name FROM asana.workspaces ORDER BY name"
+cargo run --locked -p coral-cli -- sql "SELECT gid, name FROM asana.workspaces ORDER BY name"
 ```
 
 Use one `workspace_gid`, then:
 
 ```sh
-coral sql "SELECT gid, name, archived FROM asana.projects WHERE workspace_gid = 'YOUR_WORKSPACE_GID' ORDER BY name LIMIT 20"
+cargo run --locked -p coral-cli -- sql "SELECT gid, name, archived FROM asana.projects WHERE workspace_gid = 'YOUR_WORKSPACE_GID' ORDER BY name LIMIT 20"
 ```
 
 Use one `project_gid`, then:
 
 ```sh
-coral sql "SELECT gid, name, assignee_name, completed, modified_at FROM asana.project_tasks WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY modified_at DESC LIMIT 20"
-coral sql "SELECT gid, name, created_at FROM asana.sections WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY created_at"
+cargo run --locked -p coral-cli -- sql "SELECT gid, name, assignee_name, completed, modified_at FROM asana.project_tasks WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY modified_at DESC LIMIT 20"
+cargo run --locked -p coral-cli -- sql "SELECT gid, name, created_at FROM asana.sections WHERE project_gid = 'YOUR_PROJECT_GID' ORDER BY created_at"
 ```
 
 Use one `task_gid`, then:
 
 ```sh
-coral sql "SELECT gid, name, notes, due_on, custom_fields FROM asana.task_details WHERE task_gid = 'YOUR_TASK_GID'"
-coral sql "SELECT created_at, created_by_name, resource_subtype, text FROM asana.task_stories WHERE task_gid = 'YOUR_TASK_GID' ORDER BY created_at DESC"
+cargo run --locked -p coral-cli -- sql "SELECT gid, name, notes, due_on, custom_fields FROM asana.task_details WHERE task_gid = 'YOUR_TASK_GID'"
+cargo run --locked -p coral-cli -- sql "SELECT created_at, created_by_name, resource_subtype, text FROM asana.task_stories WHERE task_gid = 'YOUR_TASK_GID' ORDER BY created_at DESC"
 ```
