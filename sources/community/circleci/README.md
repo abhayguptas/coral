@@ -1,5 +1,10 @@
 # CircleCI source
 
+**Version:** 0.1.0  
+**Backend:** HTTP  
+**Tables:** 4  
+**Base URL:** `https://circleci.com/api/v2` (override with `CIRCLECI_API_BASE` env var)
+
 This bundled source lets Coral query core CircleCI API v2 data with a token.
 
 The first version is intentionally pipeline-centric and read-only. It focuses
@@ -12,20 +17,17 @@ on four useful surfaces:
 
 ## Authentication
 
-Create a CircleCI API token, then export it:
+Requires a `CIRCLECI_TOKEN` environment variable. Create a CircleCI API token with access to the organizations and projects you want to query at [CircleCI token guide](https://circleci.com/docs/managing-api-tokens/).
 
-```sh
-export CIRCLECI_TOKEN="your_circleci_token"
+```bash
+export CIRCLECI_TOKEN="your_token"
 ```
 
-You can override the API base if needed, but the default is correct for normal
-CircleCI cloud usage:
+Override the API base if needed (defaults to `https://circleci.com/api/v2`):
 
-```sh
+```bash
 export CIRCLECI_API_BASE="https://circleci.com/api/v2"
 ```
-
-CircleCI uses the token in the `Circle-Token` request header.
 
 ## Quick start
 
@@ -138,53 +140,3 @@ LIMIT 20;
   JSON so the source stays stable across different CircleCI accounts.
 - This source intentionally does not expose reruns, cancellations, artifacts,
   tests, contexts, or insights in v1.
-
-## Validation
-
-If you are developing this source in the Coral repo, run:
-
-```sh
-cargo run --locked -p coral-cli -- source lint ./sources/circleci/manifest.yaml
-make lint-sources
-make docs-generate
-make docs-check
-```
-
-Then add and validate the source:
-
-```sh
-cargo run --locked -p coral-cli -- source add circleci
-cargo run --locked -p coral-cli -- source test circleci
-```
-
-Inspect the installed shape:
-
-```sh
-cargo run --locked -p coral-cli -- sql "SELECT table_name FROM coral.tables WHERE schema_name = 'circleci' ORDER BY table_name"
-cargo run --locked -p coral-cli -- sql "SELECT table_name, column_name, data_type FROM coral.columns WHERE schema_name = 'circleci' ORDER BY table_name, ordinal_position"
-cargo run --locked -p coral-cli -- sql "SELECT key, kind, required, is_set, default_value FROM coral.inputs WHERE schema_name = 'circleci' ORDER BY key"
-```
-
-Then verify the data flow with a few real queries:
-
-```sh
-cargo run --locked -p coral-cli -- sql "SELECT id, login, name FROM circleci.me"
-```
-
-Use one `org_slug`, then:
-
-```sh
-cargo run --locked -p coral-cli -- sql "SELECT id, number, state, created_at FROM circleci.pipelines WHERE org_slug = 'YOUR_ORG_SLUG' ORDER BY created_at DESC LIMIT 20"
-```
-
-Use one `pipeline_id`, then:
-
-```sh
-cargo run --locked -p coral-cli -- sql "SELECT id, name, status, started_at, stopped_at FROM circleci.pipeline_workflows WHERE pipeline_id = 'YOUR_PIPELINE_ID' ORDER BY started_at DESC LIMIT 20"
-```
-
-Use one `workflow_id`, then:
-
-```sh
-cargo run --locked -p coral-cli -- sql "SELECT job_number, name, status, type, started_at, stopped_at FROM circleci.workflow_jobs WHERE workflow_id = 'YOUR_WORKFLOW_ID' ORDER BY started_at DESC LIMIT 20"
-```
