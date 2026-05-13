@@ -1,5 +1,5 @@
 name: hashnode
-version: 0.1.0
+version: 0.2.0
 dsl_version: 3
 backend: http
 description: >-
@@ -77,13 +77,6 @@ tables:
     pagination:
       mode: none
     columns:
-      - name: username_filter
-        type: Utf8
-        nullable: false
-        description: Username used for the lookup.
-        expr:
-          kind: from_filter
-          key: username
       - name: id
         type: Utf8
         nullable: false
@@ -142,6 +135,15 @@ tables:
           path:
             - bio
             - markdown
+      - name: bio__html
+        type: Utf8
+        nullable: true
+        description: HTML bio.
+        expr:
+          kind: path
+          path:
+            - bio
+            - html
       - name: followers_count
         type: Int64
         nullable: true
@@ -177,14 +179,78 @@ tables:
           kind: path
           path:
             - location
-      - name: social_media_links
-        type: Json
+      - name: social_media_links__website
+        type: Utf8
         nullable: true
-        description: Public social links.
+        description: Social link - personal website.
         expr:
           kind: path
           path:
             - socialMediaLinks
+            - website
+      - name: social_media_links__github
+        type: Utf8
+        nullable: true
+        description: Social link - GitHub profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - github
+      - name: social_media_links__twitter
+        type: Utf8
+        nullable: true
+        description: Social link - Twitter profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - twitter
+      - name: social_media_links__instagram
+        type: Utf8
+        nullable: true
+        description: Social link - Instagram profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - instagram
+      - name: social_media_links__facebook
+        type: Utf8
+        nullable: true
+        description: Social link - Facebook profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - facebook
+      - name: social_media_links__stackoverflow
+        type: Utf8
+        nullable: true
+        description: Social link - Stack Overflow profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - stackoverflow
+      - name: social_media_links__linkedin
+        type: Utf8
+        nullable: true
+        description: Social link - LinkedIn profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - linkedin
+      - name: social_media_links__youtube
+        type: Utf8
+        nullable: true
+        description: Social link - YouTube profile.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+            - youtube
 
   - name: publications
     description: Public Hashnode publication metadata by host
@@ -342,6 +408,15 @@ tables:
           path:
             - about
             - markdown
+      - name: about__html
+        type: Utf8
+        nullable: true
+        description: HTML about content.
+        expr:
+          kind: path
+          path:
+            - about
+            - html
       - name: author__id
         type: Utf8
         nullable: true
@@ -369,14 +444,43 @@ tables:
           path:
             - author
             - name
-      - name: preferences
-        type: Json
+      - name: author__profile_picture
+        type: Utf8
         nullable: true
-        description: Publication preferences and navigation settings.
+        description: Publication author profile picture URL.
+        expr:
+          kind: path
+          path:
+            - author
+            - profilePicture
+      - name: preferences__logo
+        type: Utf8
+        nullable: true
+        description: Publication logo URL from preferences.
         expr:
           kind: path
           path:
             - preferences
+            - logo
+      - name: preferences__dark_mode_enabled
+        type: Boolean
+        nullable: true
+        description: Whether dark mode is enabled in preferences.
+        expr:
+          kind: path
+          path:
+            - preferences
+            - darkMode
+            - enabled
+      - name: preferences__navbar_items
+        type: Json
+        nullable: true
+        description: Navigation bar items configuration.
+        expr:
+          kind: path
+          path:
+            - preferences
+            - navbarItems
 
   - name: publication_posts
     description: Posts from a Hashnode publication
@@ -643,15 +747,46 @@ tables:
             - node
             - author
             - name
-      - name: tags
-        type: Json
+      - name: author__profile_picture
+        type: Utf8
         nullable: true
-        description: Post tags.
+        description: Author profile picture URL.
+        expr:
+          kind: path
+          path:
+            - node
+            - author
+            - profilePicture
+      - name: tags__id
+        type: Utf8
+        nullable: true
+        description: Tag ID (flattened from array).
         expr:
           kind: path
           path:
             - node
             - tags
+            - id
+      - name: tags__name
+        type: Utf8
+        nullable: true
+        description: Tag name (flattened from array).
+        expr:
+          kind: path
+          path:
+            - node
+            - tags
+            - name
+      - name: tags__slug
+        type: Utf8
+        nullable: true
+        description: Tag slug (flattened from array).
+        expr:
+          kind: path
+          path:
+            - node
+            - tags
+            - slug
 
   - name: publication_post
     description: Full content for one post in a Hashnode publication
@@ -734,7 +869,7 @@ tables:
         expr:
           kind: from_filter
           key: host
-      - name: slug_filter
+      - name: slug
         type: Utf8
         nullable: false
         description: Post slug used for the lookup.
@@ -765,10 +900,10 @@ tables:
           kind: path
           path:
             - subtitle
-      - name: slug
+      - name: slug_response
         type: Utf8
         nullable: true
-        description: Current post slug.
+        description: Current post slug from API response.
         expr:
           kind: path
           path:
@@ -855,22 +990,69 @@ tables:
           path:
             - coverImage
             - url
-      - name: author
-        type: Json
+      - name: author__id
+        type: Utf8
         nullable: true
-        description: Post author object.
+        description: Author ID.
         expr:
           kind: path
           path:
             - author
-      - name: tags
-        type: Json
+            - id
+      - name: author__username
+        type: Utf8
         nullable: true
-        description: Post tags.
+        description: Author username.
+        expr:
+          kind: path
+          path:
+            - author
+            - username
+      - name: author__name
+        type: Utf8
+        nullable: true
+        description: Author display name.
+        expr:
+          kind: path
+          path:
+            - author
+            - name
+      - name: author__profile_picture
+        type: Utf8
+        nullable: true
+        description: Author profile picture URL.
+        expr:
+          kind: path
+          path:
+            - author
+            - profilePicture
+      - name: tags__id
+        type: Utf8
+        nullable: true
+        description: Tag ID (flattened from array).
         expr:
           kind: path
           path:
             - tags
+            - id
+      - name: tags__name
+        type: Utf8
+        nullable: true
+        description: Tag name (flattened from array).
+        expr:
+          kind: path
+          path:
+            - tags
+            - name
+      - name: tags__slug
+        type: Utf8
+        nullable: true
+        description: Tag slug (flattened from array).
+        expr:
+          kind: path
+          path:
+            - tags
+            - slug
 
   - name: static_pages
     description: Static page content for a Hashnode publication
@@ -933,7 +1115,7 @@ tables:
         expr:
           kind: from_filter
           key: host
-      - name: slug_filter
+      - name: slug
         type: Utf8
         nullable: false
         description: Static page slug used for the lookup.
@@ -956,10 +1138,10 @@ tables:
           kind: path
           path:
             - title
-      - name: slug
+      - name: slug_response
         type: Utf8
         nullable: true
-        description: Static page slug.
+        description: Static page slug from API response.
         expr:
           kind: path
           path:
