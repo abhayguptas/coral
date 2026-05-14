@@ -9,7 +9,9 @@ inputs:
   AIRTABLE_API_BASE:
     kind: variable
     hint: |
-      Base URL for the Airtable Web API.
+      Base URL for the Airtable Web API. The default
+      `https://api.airtable.com` is correct for standard Airtable cloud usage.
+      Only override if you are using a self-hosted or custom domain instance.
     default: https://api.airtable.com
   AIRTABLE_TOKEN:
     kind: secret
@@ -104,7 +106,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Base ID filter
+        description: Base ID (from required filter)
         expr:
           kind: from_filter
           key: base_id
@@ -211,7 +213,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Base ID filter
+        description: Base ID (from required filter)
         expr:
           kind: from_filter
           key: base_id
@@ -219,7 +221,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Table ID filter
+        description: Table ID (from required filter)
         expr:
           kind: from_filter
           key: table_id
@@ -254,7 +256,7 @@ tables:
         type: Utf8
         nullable: true
         virtual: true
-        description: Optional Airtable view filter
+        description: Optional view ID for filtering records
         expr:
           kind: from_filter
           key: view
@@ -262,7 +264,7 @@ tables:
         type: Utf8
         nullable: true
         virtual: true
-        description: Optional Airtable formula filter
+        description: Optional Airtable formula for record filtering
         expr:
           kind: from_filter
           key: formula
@@ -270,7 +272,7 @@ tables:
         type: Int64
         nullable: true
         virtual: true
-        description: Optional Airtable maxRecords filter
+        description: Optional maximum record count for this query
         expr:
           kind: from_filter
           key: max_records

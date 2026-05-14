@@ -82,6 +82,14 @@ ORDER BY key;
 This is especially useful for Airtable because the source is intentionally
 JSON-first for dynamic schema content.
 
+## Rate Limits
+
+Airtable API enforces rate limits (typically 30 requests/second). This source
+uses cursor-based pagination with a default page size of 100, which helps
+respect these limits. If you encounter rate limit errors, consider reducing
+query frequency or adding delays between requests when performing batch
+operations.
+
 ## Tables
 
 | Table | Notes |
@@ -165,7 +173,7 @@ LIMIT 10;
 If you are developing this source in the Coral repo, run:
 
 ```sh
-cargo run --locked -p coral-cli -- source lint ./sources/airtable/manifest.yaml
+cargo run --locked -p coral-cli -- source lint ./sources/community/airtable/manifest.yaml
 make lint-sources
 make docs-generate
 make docs-check
