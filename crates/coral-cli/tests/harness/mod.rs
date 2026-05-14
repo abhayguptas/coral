@@ -16,11 +16,12 @@ use coral_api::v1::source_service_server::{SourceService, SourceServiceServer};
 use coral_api::v1::{
     Column, CreateBundledSourceRequest, CreateBundledSourceResponse, DeleteSourceRequest,
     DeleteSourceResponse, DiscoverSourcesRequest, DiscoverSourcesResponse, ExecuteSqlRequest,
-    ExecuteSqlResponse, GetSourceInfoRequest, GetSourceInfoResponse, GetSourceRequest,
-    GetSourceResponse, ImportSourceRequest, ImportSourceResponse, ListSourcesRequest,
-    ListSourcesResponse, ListTablesRequest, ListTablesResponse, PaginationResponse, Source,
-    SourceInfo, SourceInputKind, SourceInputSpec, SourceOrigin, Table, TableSummary,
-    ValidateSourceRequest, ValidateSourceResponse, Workspace,
+    ExecuteSqlResponse, ExplainSqlRequest, ExplainSqlResponse, GetSourceInfoRequest,
+    GetSourceInfoResponse, GetSourceRequest, GetSourceResponse, ImportSourceRequest,
+    ImportSourceResponse, ListSourcesRequest, ListSourcesResponse, ListTablesRequest,
+    ListTablesResponse, PaginationResponse, QueryPlan, Source, SourceInfo, SourceInputKind,
+    SourceInputSpec, SourceOrigin, Table, TableSummary, ValidateSourceRequest,
+    ValidateSourceResponse, Workspace,
 };
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -67,22 +68,34 @@ fn mock_visible_table() -> Table {
         guide: "Query fixture messages.".to_string(),
         columns: vec![
             Column {
-                name: "type".to_string(),
+                name: "owner".to_string(),
                 data_type: "Utf8".to_string(),
                 nullable: false,
+                is_virtual: true,
+                is_required_filter: true,
+                description: "Repository owner filter".to_string(),
+                ordinal_position: 0,
             },
             Column {
-                name: "sessionId".to_string(),
+                name: "repo".to_string(),
                 data_type: "Utf8".to_string(),
                 nullable: false,
+                is_virtual: true,
+                is_required_filter: true,
+                description: "Repository name filter".to_string(),
+                ordinal_position: 1,
             },
             Column {
                 name: "text".to_string(),
                 data_type: "Utf8".to_string(),
                 nullable: false,
+                is_virtual: false,
+                is_required_filter: false,
+                description: "Message text".to_string(),
+                ordinal_position: 2,
             },
         ],
-        required_filters: Vec::new(),
+        required_filters: vec!["owner".to_string(), "repo".to_string()],
     }
 }
 
@@ -495,6 +508,19 @@ impl QueryService for MockQueryService {
         };
 
         Ok(Response::new(response))
+    }
+
+    async fn explain_sql(
+        &self,
+        _request: Request<ExplainSqlRequest>,
+    ) -> Result<Response<ExplainSqlResponse>, Status> {
+        Ok(Response::new(ExplainSqlResponse {
+            plan: Some(QueryPlan {
+                unoptimized_logical_plan: "LogicalPlan".to_string(),
+                optimized_logical_plan: "OptimizedLogicalPlan".to_string(),
+                physical_plan: "PhysicalPlan".to_string(),
+            }),
+        }))
     }
 }
 
