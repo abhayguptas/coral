@@ -1,6 +1,6 @@
 # Zendesk source
 
-This bundled source lets Coral query core Zendesk Support data with an API
+This community source lets Coral query core Zendesk Support data with an API
 token.
 
 The first version is intentionally narrow and read-only. It focuses on the
@@ -74,10 +74,18 @@ payloads stay as JSON.
 
 ## Rate Limits
 
-Zendesk API enforces rate limits (typically 700 requests/minute for standard plans).
+Zendesk API enforces rate limits that vary by plan:
+
+- **Team**: 200 requests/minute
+- **Professional/Growth**: 400 requests/minute
+- **Enterprise**: 700 requests/minute
+- **Enterprise Plus**: 2500 requests/minute
+
 This source uses cursor-based pagination with a default page size of 100, which
 efficiently respects these limits. If you encounter rate limit errors, consider
-reducing query frequency or filtering by time ranges when available.
+reducing query frequency or filtering by time ranges when available. Refer to the
+[Zendesk rate limits documentation](https://developer.zendesk.com/api-reference/introduction/rate-limits/)
+for endpoint-specific limits.
 
 ## Tables
 

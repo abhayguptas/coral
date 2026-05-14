@@ -35,11 +35,7 @@ request_headers:
     from: literal
     value: application/json
 test_queries:
-  - SELECT * FROM zendesk.users LIMIT 1
-  - SELECT * FROM zendesk.organizations LIMIT 1
-  - SELECT * FROM zendesk.groups LIMIT 1
   - SELECT * FROM zendesk.tickets LIMIT 1
-  - SELECT COUNT(*) as comment_count FROM zendesk.ticket_comments WHERE ticket_id = (SELECT id FROM zendesk.tickets LIMIT 1)
 tables:
   - name: users
     description: Zendesk users visible to the authenticated account
@@ -173,9 +169,10 @@ tables:
         expr:
           kind: current_row
   - name: organizations
-    description: Zendesk organizations visible to the authenticated account
+    description: Zendesk organizations (may require admin access)
     guide: |
       Use this to map organization metadata for ticket and user analysis.
+      Note: Listing all organizations may require admin permissions.
     request:
       method: GET
       path: /api/v2/organizations.json
@@ -303,10 +300,10 @@ tables:
         expr:
           kind: current_row
   - name: groups
-    description: Zendesk groups available to the authenticated account
+    description: Zendesk groups (may require admin access)
     guide: |
       Use this for assignment metadata. Tickets can be assigned to groups and
-      users can have a default group.
+      users can have a default group. Note: Listing all groups may require admin permissions.
     request:
       method: GET
       path: /api/v2/groups.json
@@ -394,10 +391,12 @@ tables:
         expr:
           kind: current_row
   - name: tickets
-    description: Zendesk tickets visible to the authenticated account
+    description: Zendesk tickets (listed by ID ascending, excludes archived by default)
     guide: |
-      Use this as the primary support queue table. It intentionally exposes a
-      narrow, stable ticket shape for triage and queue analysis.
+      The List Tickets endpoint returns tickets sorted by ID ascending and excludes
+      archived tickets by default. For recent-tickets analysis, filter by
+      `updated_at` or other timestamp fields. See Zendesk API docs for sorting
+      and filtering options.
 
       `custom_fields` contains account-specific fields as a JSON object.
       Refer to your Zendesk admin panel for field definitions and structure.
