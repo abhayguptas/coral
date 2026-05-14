@@ -270,7 +270,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Workspace ID filter
+        description: Workspace ID (from required filter)
         expr:
           kind: from_filter
           key: workspace_gid
@@ -349,7 +349,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Project ID filter
+        description: Project ID (from required filter)
         expr:
           kind: from_filter
           key: project_gid
@@ -553,7 +553,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Project ID filter
+        description: Project ID (from required filter)
         expr:
           kind: from_filter
           key: project_gid
@@ -819,7 +819,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Task ID filter
+        description: Task ID (from required filter)
         expr:
           kind: from_filter
           key: task_gid
@@ -958,7 +958,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Task ID filter
+        description: Task ID (from required filter)
         expr:
           kind: from_filter
           key: task_gid
@@ -1051,7 +1051,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Workspace ID filter
+        description: Workspace ID (from required filter)
         expr:
           kind: from_filter
           key: workspace_gid

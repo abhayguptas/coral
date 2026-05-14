@@ -62,6 +62,17 @@ ORDER BY key;
 This is especially useful when validating required filters and nested JSON
 columns such as `custom_fields`, `memberships`, and `projects`.
 
+## Rate limits
+
+Asana enforces a rate limit of 150 requests per 10 seconds per token for REST API
+calls. Queries that join multiple tables or iterate over large result sets may
+approach this limit. Consider:
+
+- breaking large queries into smaller chunks
+- caching result data locally if you run the same query repeatedly
+- using the optional filters (e.g., `modified_at` in `project_tasks`) to reduce
+  the scope of queries
+
 ## Tables
 
 | Table | Notes |
@@ -155,7 +166,7 @@ ORDER BY name;
 If you are developing this source in the Coral repo, run:
 
 ```sh
-cargo run --locked -p coral-cli -- source lint ./sources/asana/manifest.yaml
+cargo run --locked -p coral-cli -- source lint ./sources/community/asana/manifest.yaml
 make lint-sources
 make docs-generate
 make docs-check
