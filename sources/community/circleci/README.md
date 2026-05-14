@@ -2,22 +2,23 @@
 
 **Version:** 0.1.0  
 **Backend:** HTTP  
-**Tables:** 4  
+**Tables:** 5  
 **Base URL:** `https://circleci.com/api/v2` (override with `CIRCLECI_API_BASE` env var)
 
-This bundled source lets Coral query core CircleCI API v2 data with a token.
+This bundled source lets Coral query core CircleCI API v2 data with a personal API token.
 
 The first version is intentionally pipeline-centric and read-only. It focuses
-on four useful surfaces:
+on five useful surfaces:
 
 - the current user
+- organizations and teams available to the current user
 - recent pipelines for one organization
 - workflows inside one pipeline
 - jobs inside one workflow
 
 ## Authentication
 
-Requires a `CIRCLECI_TOKEN` environment variable. Create a CircleCI API token with access to the organizations and projects you want to query at [CircleCI token guide](https://circleci.com/docs/managing-api-tokens/).
+Requires a `CIRCLECI_TOKEN` environment variable. Create a **personal API token** (not a project token) with access to the organizations and projects you want to query at [CircleCI token guide](https://circleci.com/docs/managing-api-tokens/). This source queries user and organization-level endpoints like `/me` and pipeline listings.
 
 ```bash
 export CIRCLECI_TOKEN="your_token"
@@ -73,6 +74,7 @@ payloads stay as JSON.
 | Table | Notes |
 |---|---|
 | `me` | Current user for the configured token |
+| `me_collaborations` | Organizations and teams accessible to current user; use for discovering `org_slug` values |
 | `pipelines` | Recent pipelines for one organization; requires `org_slug` |
 | `pipeline_workflows` | Workflows inside one pipeline; requires `pipeline_id` |
 | `workflow_jobs` | Jobs inside one workflow; requires `workflow_id` |
@@ -80,7 +82,13 @@ payloads stay as JSON.
 ## About `org_slug`
 
 `pipelines` requires an `org_slug` because CircleCI's list-pipelines endpoint is
-organization-scoped.
+organization-scoped. Use the `me_collaborations` table to discover available organization slugs:
+
+```sql
+SELECT slug, name
+FROM circleci.me_collaborations
+ORDER BY name;
+```
 
 For GitHub OAuth organizations, the slug typically looks like:
 
@@ -102,10 +110,18 @@ SELECT id, login, name, avatar_url
 FROM circleci.me;
 ```
 
+Discover available organizations and teams:
+
+```sql
+SELECT slug, name
+FROM circleci.me_collaborations
+ORDER BY name;
+```
+
 List recent pipelines for one organization:
 
 ```sql
-SELECT id, number, state, created_at
+SELECT id, number, state, created_at, project_slug
 FROM circleci.pipelines
 WHERE org_slug = 'gh/my-org'
 ORDER BY created_at DESC
@@ -115,10 +131,10 @@ LIMIT 20;
 Inspect workflows for one pipeline:
 
 ```sql
-SELECT id, name, status, started_at, stopped_at
+SELECT id, name, status, created_at, stopped_at
 FROM circleci.pipeline_workflows
 WHERE pipeline_id = 'YOUR_PIPELINE_ID'
-ORDER BY started_at DESC
+ORDER BY created_at DESC
 LIMIT 20;
 ```
 
@@ -134,9 +150,10 @@ LIMIT 20;
 
 ## Table behavior notes
 
-- `pipeline_workflows` is a lookup-style table. It requires one `pipeline_id`.
+- `me_collaborations` returns organizations and teams where the current user has access; use this to discover valid `org_slug` values for the pipelines table.
+- `pipeline_workflows` is a lookup-style table. It requires one `pipeline_id` and uses `created_at` (workflow creation time).
 - `workflow_jobs` is a lookup-style table. It requires one `workflow_id`.
-- `trigger`, `vcs`, `errors`, `dependencies`, `requires`, and `raw` remain
-  JSON so the source stays stable across different CircleCI accounts.
-- This source intentionally does not expose reruns, cancellations, artifacts,
-  tests, contexts, or insights in v1.
+- `pipelines` now exposes `project_slug` as a first-class column for identifying which repo/project a pipeline belongs to.
+- `pipelines` also exposes `updated_at` and `trigger_parameters` for more detailed pipeline inspection.
+- `trigger`, `vcs`, `errors`, `dependencies`, `requires`, and `raw` remain JSON so the source stays stable across different CircleCI accounts.
+- This source intentionally does not expose reruns, cancellations, artifacts, tests, contexts, or insights in v1.
