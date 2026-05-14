@@ -72,6 +72,13 @@ ORDER BY key;
 This is useful for confirming required filters and seeing which nested Zendesk
 payloads stay as JSON.
 
+## Rate Limits
+
+Zendesk API enforces rate limits (typically 700 requests/minute for standard plans).
+This source uses cursor-based pagination with a default page size of 100, which
+efficiently respects these limits. If you encounter rate limit errors, consider
+reducing query frequency or filtering by time ranges when available.
+
 ## Tables
 
 | Table | Notes |
@@ -129,18 +136,17 @@ LIMIT 20;
 
 ## Table behavior notes
 
-- `ticket_comments` is a lookup-style table. It requires one `ticket_id`.
-- `tags`, `custom_fields`, `via`, `attachments`, `domain_names`, and `raw`
-  remain JSON so the source stays stable across different Zendesk accounts.
-- This source intentionally does not expose Zendesk search or export APIs in
-  v1.
+- `ticket_comments` is a lookup-style table requiring a `ticket_id` filter to fetch comments for one ticket.
+- `custom_fields` is stored as JSON because field structure is account-specific. Refer to your Zendesk admin panel for your field definitions.
+- `tags`, `via`, `attachments`, `domain_names`, and `raw` remain JSON so the source stays stable across different Zendesk accounts.
+- This source intentionally does not expose Zendesk search or export APIs in v1.
 
 ## Validation
 
 If you are developing this source in the Coral repo, run:
 
 ```sh
-cargo run --locked -p coral-cli -- source lint ./sources/zendesk/manifest.yaml
+cargo run --locked -p coral-cli -- source lint ./sources/community/zendesk/manifest.yaml
 make lint-sources
 make docs-generate
 make docs-check

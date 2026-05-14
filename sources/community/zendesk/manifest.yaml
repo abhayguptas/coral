@@ -39,6 +39,7 @@ test_queries:
   - SELECT * FROM zendesk.organizations LIMIT 1
   - SELECT * FROM zendesk.groups LIMIT 1
   - SELECT * FROM zendesk.tickets LIMIT 1
+  - SELECT COUNT(*) as comment_count FROM zendesk.ticket_comments WHERE ticket_id = (SELECT id FROM zendesk.tickets LIMIT 1)
 tables:
   - name: users
     description: Zendesk users visible to the authenticated account
@@ -130,7 +131,7 @@ tables:
       - name: created_at
         type: Timestamp
         nullable: true
-        description: Creation time
+        description: User creation time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -141,7 +142,7 @@ tables:
       - name: updated_at
         type: Timestamp
         nullable: true
-        description: Last update time
+        description: User last update time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -252,7 +253,7 @@ tables:
       - name: created_at
         type: Timestamp
         nullable: true
-        description: Creation time
+        description: Organization creation time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -263,7 +264,7 @@ tables:
       - name: updated_at
         type: Timestamp
         nullable: true
-        description: Last update time
+        description: Organization last update time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -359,7 +360,7 @@ tables:
       - name: created_at
         type: Timestamp
         nullable: true
-        description: Creation time
+        description: Group creation time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -370,7 +371,7 @@ tables:
       - name: updated_at
         type: Timestamp
         nullable: true
-        description: Last update time
+        description: Group last update time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -397,6 +398,9 @@ tables:
     guide: |
       Use this as the primary support queue table. It intentionally exposes a
       narrow, stable ticket shape for triage and queue analysis.
+
+      `custom_fields` contains account-specific fields as a JSON object.
+      Refer to your Zendesk admin panel for field definitions and structure.
     request:
       method: GET
       path: /api/v2/tickets.json
@@ -514,7 +518,7 @@ tables:
       - name: created_at
         type: Timestamp
         nullable: true
-        description: Creation time
+        description: Ticket creation time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -525,7 +529,7 @@ tables:
       - name: updated_at
         type: Timestamp
         nullable: true
-        description: Last update time
+        description: Ticket last update time
         expr:
           kind: format_timestamp
           input: iso8601
@@ -544,7 +548,7 @@ tables:
       - name: custom_fields
         type: Json
         nullable: true
-        description: Ticket custom fields
+        description: Ticket custom fields (account-specific structure)
         expr:
           kind: path
           path:
@@ -572,10 +576,10 @@ tables:
         expr:
           kind: current_row
   - name: ticket_comments
-    description: Comments for one Zendesk ticket
+    description: Comments for a specific Zendesk ticket (requires ticket_id filter)
     guide: |
-      Requires `ticket_id`. This is a lookup-style table for one ticket's
-      conversation history.
+      Lookup-style table for a single ticket's conversation history.
+      Filter by `ticket_id` to retrieve all comments for that ticket.
     filters:
       - name: ticket_id
         required: true
@@ -610,7 +614,7 @@ tables:
         type: Utf8
         nullable: false
         virtual: true
-        description: Ticket ID filter
+        description: Ticket ID (from required filter)
         expr:
           kind: from_filter
           key: ticket_id
@@ -657,7 +661,7 @@ tables:
       - name: created_at
         type: Timestamp
         nullable: true
-        description: Creation time
+        description: Comment creation time
         expr:
           kind: format_timestamp
           input: iso8601
