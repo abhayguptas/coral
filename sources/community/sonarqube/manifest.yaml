@@ -1,0 +1,685 @@
+dsl_version: 3
+name: sonarqube
+version: 0.1.0
+description: >-
+  Query projects, issues, quality gates, security hotspots, and code metrics from
+  SonarQube Server or SonarQube Cloud.
+backend: http
+inputs:
+  SONARQUBE_BASE_URL:
+    kind: variable
+    hint: |
+      Base URL of your SonarQube Server instance or Cloud organization.
+      Examples:
+      - Self-hosted: https://sonarqube.company.com
+      - Cloud: https://sonarcloud.io
+  SONARQUBE_TOKEN:
+    kind: secret
+    hint: |
+      Bearer token for SonarQube API access.
+      Create a token in SonarQube under User > My Account > Security > Tokens.
+      Token must have 'Scan' and 'Read on projects' scopes at minimum.
+      For Cloud, tokens are managed under Organization > Members > Tokens.
+base_url: "{{input.SONARQUBE_BASE_URL}}"
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: "Bearer {{input.SONARQUBE_TOKEN}}"
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT * FROM sonarqube.current_user LIMIT 1
+  - SELECT * FROM sonarqube.projects LIMIT 1
+tables:
+  - name: current_user
+    description: Authenticated user information and token validation
+    guide: |
+      Use this to validate SonarQube credentials and confirm token status.
+      This table should return exactly one row per query.
+    request:
+      method: GET
+      path: /api/authentication/validate
+    response:
+      rows_path: []
+      row_strategy: direct
+    columns:
+      - name: is_authenticated
+        type: Boolean
+        nullable: false
+        description: Whether the token is valid and authenticated
+        expr:
+          kind: path
+          path:
+            - valid
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full authentication response
+        expr:
+          kind: current_row
+
+  - name: projects
+    description: SonarQube projects accessible to the authenticated token
+    guide: |
+      Projects are the primary organizational unit in SonarQube.
+      Each project represents a repository or application being analyzed.
+      Use project_key to join with issues, measures, and quality gate status.
+    request:
+      method: GET
+      path: /api/components/search_projects
+    response:
+      rows_path:
+        - components
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_param: p
+      page_size:
+        default: 100
+        max: 500
+        query_param: ps
+    columns:
+      - name: project_key
+        type: Utf8
+        nullable: false
+        description: Unique project identifier
+        expr:
+          kind: path
+          path:
+            - key
+      - name: project_name
+        type: Utf8
+        nullable: true
+        description: Project display name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: qualifier
+        type: Utf8
+        nullable: true
+        description: Project qualifier (typically TRK for project)
+        expr:
+          kind: path
+          path:
+            - qualifier
+      - name: visibility
+        type: Utf8
+        nullable: true
+        description: Project visibility (PUBLIC or PRIVATE)
+        expr:
+          kind: path
+          path:
+            - visibility
+      - name: last_analysis_date
+        type: Timestamp
+        nullable: true
+        description: Last analysis timestamp
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - lastAnalysisDate
+      - name: organization_key
+        type: Utf8
+        nullable: true
+        description: Organization key (SonarCloud only)
+        expr:
+          kind: path
+          path:
+            - organization
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw project object
+        expr:
+          kind: current_row
+
+  - name: issues
+    description: Code issues detected by SonarQube analysis (requires project filter)
+    guide: |
+      Issues include bugs, vulnerabilities, code smells, and maintainability concerns.
+      REQUIRED: Filter by project_key to scope queries to a specific project.
+      Optional: Further filter by severity, type, or status.
+
+      Types: BUG, VULNERABILITY, CODE_SMELL
+      Severities: BLOCKER, CRITICAL, MAJOR, MINOR, INFO
+      Statuses: OPEN, CONFIRMED, RESOLVED, REOPENED, CLOSED
+    filters:
+      - name: project_key
+        required: true
+      - name: severity
+        required: false
+      - name: type
+        required: false
+      - name: status
+        required: false
+    request:
+      method: GET
+      path: /api/issues/search
+      query:
+        - name: componentKeys
+          from: filter
+          key: project_key
+        - name: severities
+          from: filter
+          key: severity
+        - name: types
+          from: filter
+          key: type
+        - name: statuses
+          from: filter
+          key: status
+    response:
+      rows_path:
+        - issues
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_param: p
+      page_size:
+        default: 100
+        max: 500
+        query_param: ps
+    columns:
+      - name: issue_key
+        type: Utf8
+        nullable: false
+        description: Unique issue identifier
+        expr:
+          kind: path
+          path:
+            - key
+      - name: project_key
+        type: Utf8
+        nullable: false
+        description: Project identifier
+        expr:
+          kind: path
+          path:
+            - project
+      - name: rule
+        type: Utf8
+        nullable: true
+        description: SonarQube rule key that detected the issue
+        expr:
+          kind: path
+          path:
+            - rule
+      - name: severity
+        type: Utf8
+        nullable: true
+        description: Issue severity (BLOCKER, CRITICAL, MAJOR, MINOR, INFO)
+        expr:
+          kind: path
+          path:
+            - severity
+      - name: type
+        type: Utf8
+        nullable: true
+        description: Issue type (BUG, VULNERABILITY, CODE_SMELL)
+        expr:
+          kind: path
+          path:
+            - type
+      - name: status
+        type: Utf8
+        nullable: true
+        description: Issue status (OPEN, CONFIRMED, RESOLVED, REOPENED, CLOSED)
+        expr:
+          kind: path
+          path:
+            - status
+      - name: resolution
+        type: Utf8
+        nullable: true
+        description: Issue resolution (FIXED, REMOVED, WONTFIX, FALSE_POSITIVE, ACCEPTED)
+        expr:
+          kind: path
+          path:
+            - resolution
+      - name: message
+        type: Utf8
+        nullable: true
+        description: Issue description or message
+        expr:
+          kind: path
+          path:
+            - message
+      - name: component
+        type: Utf8
+        nullable: true
+        description: File or component where issue was detected
+        expr:
+          kind: path
+          path:
+            - component
+      - name: line
+        type: Int64
+        nullable: true
+        description: Line number where issue starts
+        expr:
+          kind: path
+          path:
+            - line
+      - name: creation_date
+        type: Timestamp
+        nullable: true
+        description: When the issue was created
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - creationDate
+      - name: update_date
+        type: Timestamp
+        nullable: true
+        description: When the issue was last updated
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - updateDate
+      - name: effort
+        type: Utf8
+        nullable: true
+        description: Estimated effort to fix (e.g., "5min", "1h")
+        expr:
+          kind: path
+          path:
+            - effort
+      - name: debt
+        type: Utf8
+        nullable: true
+        description: Technical debt (e.g., "5min", "1h")
+        expr:
+          kind: path
+          path:
+            - debt
+      - name: assignee_login
+        type: Utf8
+        nullable: true
+        description: Assigned user login
+        expr:
+          kind: path
+          path:
+            - assignee
+      - name: author_login
+        type: Utf8
+        nullable: true
+        description: User who created the issue
+        expr:
+          kind: path
+          path:
+            - author
+      - name: flows
+        type: Json
+        nullable: true
+        description: Issue flows (nested analysis paths)
+        expr:
+          kind: path
+          path:
+            - flows
+      - name: locations
+        type: Json
+        nullable: true
+        description: Issue locations (nested file/line references)
+        expr:
+          kind: path
+          path:
+            - locations
+      - name: impacts
+        type: Json
+        nullable: true
+        description: Issue impacts (nested impact definitions)
+        expr:
+          kind: path
+          path:
+            - impacts
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw issue object
+        expr:
+          kind: current_row
+
+  - name: security_hotspots
+    description: Security hotspots identified in SonarQube analysis (requires project filter)
+    guide: |
+      Security hotspots are security-sensitive code locations requiring manual review.
+      REQUIRED: Filter by project_key to scope queries to a specific project.
+      Optional: Filter by status to find hotspots at a specific review stage.
+
+      Statuses: TO_REVIEW, ACKNOWLEDGED, FIXED, SAFE
+    filters:
+      - name: project_key
+        required: true
+      - name: status
+        required: false
+    request:
+      method: GET
+      path: /api/hotspots/search
+      query:
+        - name: projectKey
+          from: filter
+          key: project_key
+        - name: status
+          from: filter
+          key: status
+    response:
+      rows_path:
+        - hotspots
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_param: p
+      page_size:
+        default: 100
+        max: 500
+        query_param: ps
+    columns:
+      - name: hotspot_key
+        type: Utf8
+        nullable: false
+        description: Unique hotspot identifier
+        expr:
+          kind: path
+          path:
+            - key
+      - name: project_key
+        type: Utf8
+        nullable: false
+        description: Project identifier
+        expr:
+          kind: path
+          path:
+            - project
+      - name: component
+        type: Utf8
+        nullable: true
+        description: File or component containing the hotspot
+        expr:
+          kind: path
+          path:
+            - component
+      - name: line
+        type: Int64
+        nullable: true
+        description: Line number where hotspot appears
+        expr:
+          kind: path
+          path:
+            - line
+      - name: status
+        type: Utf8
+        nullable: true
+        description: Hotspot review status (TO_REVIEW, ACKNOWLEDGED, FIXED, SAFE)
+        expr:
+          kind: path
+          path:
+            - status
+      - name: message
+        type: Utf8
+        nullable: true
+        description: Hotspot description
+        expr:
+          kind: path
+          path:
+            - message
+      - name: vulnerability_probability
+        type: Utf8
+        nullable: true
+        description: Probability of vulnerability (HIGH, MEDIUM, LOW)
+        expr:
+          kind: path
+          path:
+            - vulnerabilityProbability
+      - name: creation_date
+        type: Timestamp
+        nullable: true
+        description: When the hotspot was detected
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - creationDate
+      - name: update_date
+        type: Timestamp
+        nullable: true
+        description: When the hotspot was last updated
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - updateDate
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw hotspot object
+        expr:
+          kind: current_row
+
+  - name: measures
+    description: Project quality metrics and code measures (requires project and metric keys)
+    guide: |
+      Measures expose project-level metrics including coverage, bugs, vulnerabilities,
+      duplications, and quality ratings.
+
+      REQUIRED: Filter by both project_key and metric_keys.
+      Common metrics: bugs, vulnerabilities, code_smells, coverage, duplicated_lines_density,
+      reliability_rating, security_rating, maintainability_rating, security_hotspots,
+      sqale_index
+
+      Metric keys can be comma-separated (e.g., coverage,bugs,vulnerabilities).
+    filters:
+      - name: project_key
+        required: true
+      - name: metric_keys
+        required: true
+    request:
+      method: GET
+      path: /api/measures/component
+      query:
+        - name: component
+          from: filter
+          key: project_key
+        - name: metricKeys
+          from: filter
+          key: metric_keys
+    response:
+      rows_path:
+        - component
+        - measures
+      row_strategy: direct
+    columns:
+      - name: project_key
+        type: Utf8
+        nullable: false
+        description: Project identifier
+        expr:
+          kind: from_filter
+          key: project_key
+      - name: metric_key
+        type: Utf8
+        nullable: false
+        description: Metric identifier (bugs, coverage, etc.)
+        expr:
+          kind: path
+          path:
+            - metric
+      - name: value
+        type: Utf8
+        nullable: true
+        description: Metric value (string to preserve format)
+        expr:
+          kind: path
+          path:
+            - value
+      - name: best_value
+        type: Boolean
+        nullable: true
+        description: Whether this metric represents the best possible value
+        expr:
+          kind: path
+          path:
+            - bestValue
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw measure object
+        expr:
+          kind: current_row
+
+  - name: quality_gates
+    description: SonarQube quality gate definitions
+    guide: |
+      Quality gates define pass/fail criteria for projects.
+      Use this table to understand configured quality gates.
+      Join with project_quality_gate_status to see how projects evaluate against each gate.
+    request:
+      method: GET
+      path: /api/qualitygates/list
+    response:
+      rows_path:
+        - qualitygates
+      row_strategy: direct
+    columns:
+      - name: quality_gate_id
+        type: Utf8
+        nullable: false
+        description: Unique quality gate identifier
+        expr:
+          kind: path
+          path:
+            - id
+      - name: quality_gate_name
+        type: Utf8
+        nullable: false
+        description: Quality gate display name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: is_default
+        type: Boolean
+        nullable: true
+        description: Whether this is the default quality gate
+        expr:
+          kind: path
+          path:
+            - isDefault
+      - name: is_built_in
+        type: Boolean
+        nullable: true
+        description: Whether this is a built-in quality gate
+        expr:
+          kind: path
+          path:
+            - isBuiltIn
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw quality gate object
+        expr:
+          kind: current_row
+
+  - name: project_quality_gate_status
+    description: Quality gate evaluation results for projects (requires project filter)
+    guide: |
+      Shows how each project evaluated against its assigned quality gate.
+      REQUIRED: Filter by project_key to retrieve quality gate status for a project.
+
+      Status values: OK (passed), ERROR (failed)
+    filters:
+      - name: project_key
+        required: true
+    request:
+      method: GET
+      path: /api/qualitygates/project_status
+      query:
+        - name: projectKey
+          from: filter
+          key: project_key
+    response:
+      rows_path:
+        - projectStatus
+      row_strategy: direct
+    columns:
+      - name: project_key
+        type: Utf8
+        nullable: false
+        description: Project identifier
+        expr:
+          kind: from_filter
+          key: project_key
+      - name: quality_gate_name
+        type: Utf8
+        nullable: true
+        description: Name of the quality gate
+        expr:
+          kind: path
+          path:
+            - qualityGate
+      - name: status
+        type: Utf8
+        nullable: false
+        description: Quality gate status (OK or ERROR)
+        expr:
+          kind: path
+          path:
+            - status
+      - name: is_quality_gate_passed
+        type: Boolean
+        nullable: false
+        description: Whether quality gate passed
+        expr:
+          kind: path
+          path:
+            - status
+      - name: last_analysis_date
+        type: Timestamp
+        nullable: true
+        description: Last analysis timestamp
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - analysisDate
+      - name: ignored_conditions
+        type: Json
+        nullable: true
+        description: Conditions that were ignored
+        expr:
+          kind: path
+          path:
+            - ignoredConditions
+      - name: failed_conditions
+        type: Json
+        nullable: true
+        description: Conditions that caused failure
+        expr:
+          kind: path
+          path:
+            - conditions
+      - name: raw
+        type: Json
+        nullable: false
+        description: Full raw quality gate status
+        expr:
+          kind: current_row
