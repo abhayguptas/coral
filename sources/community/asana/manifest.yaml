@@ -969,17 +969,21 @@ tables:
         expr:
           kind: current_row
   - name: users
-    description: Users in one Asana workspace
+    description: Users in one Asana workspace or organization
     guide: |
       Requires `workspace_gid`. Use this to map assignee IDs and workspace
-      members during project analysis.
+      members during project analysis. Results are sorted by user ID and
+      paginated to support workspaces with more than 2000 users.
     filters:
       - name: workspace_gid
         required: true
     request:
       method: GET
-      path: /workspaces/{{filter.workspace_gid}}/users
+      path: /users
       query:
+        - name: workspace
+          from: filter
+          key: workspace_gid
         - name: opt_fields
           from: literal
           value: gid,name,resource_type,email,photo.image_60x60,workspaces
