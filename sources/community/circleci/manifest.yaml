@@ -1,6 +1,6 @@
 dsl_version: 3
 name: circleci
-version: 0.1.0
+version: 0.2.0
 description: Query the current user, recent pipelines, pipeline workflows, and workflow
   jobs from CircleCI API v2.
 backend: http
@@ -344,7 +344,7 @@ tables:
       expr:
         kind: path
         path:
-        - started_at
+        - created_at
   - name: stopped_at
     type: Timestamp
     nullable: true
